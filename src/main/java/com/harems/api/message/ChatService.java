@@ -54,6 +54,9 @@ public class ChatService {
                 .content(reply)
                 .build());
 
+        conversation.setUpdatedAt(java.time.LocalDateTime.now());
+        conversationRepository.save(conversation);
+
         Integer messagesLimit = accessControlService.getFreeMessagesLimit(profile);
 
         return new ChatResponse(conversation.getId(), reply, messagesUsed, messagesLimit);
