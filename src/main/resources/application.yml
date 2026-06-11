@@ -1,0 +1,58 @@
+spring:
+  application:
+    name: harems-api
+
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:jdbc:mysql://localhost:3306/harems_db?createDatabaseIfNotExist=true&useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC}
+    username: ${SPRING_DATASOURCE_USERNAME:root}
+    password: ${SPRING_DATASOURCE_PASSWORD:root}
+
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: false
+    open-in-view: false
+    properties:
+      hibernate:
+        format_sql: true
+
+server:
+  port: 8080
+  servlet:
+    context-path: /api
+
+app:
+  jwt:
+    secret: ${JWT_SECRET:harems-super-secret-key-change-me-please-1234567890}
+    expiration: ${JWT_EXPIRATION:86400000}
+
+  frontend:
+    url: ${FRONTEND_URL:http://localhost:3000}
+  cors:
+    allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:3000,https://haremsweb.vercel.app}
+
+  admin:
+    bootstrap-email: ${ADMIN_BOOTSTRAP_EMAIL:emy.rodriguezc28@gmail.com}
+
+  limits:
+    free-messages-per-character: 20
+
+# AI integration (future use - not connected yet)
+ai:
+  openai:
+    api-key: ${OPENAI_API_KEY:}
+  openrouter:
+    api-key: ${OPENROUTER_API_KEY:}
+
+# Image generation integration (future use - not connected yet)
+image-generation:
+  comfyui:
+    base-url: ${COMFYUI_BASE_URL:}
+  runpod:
+    api-key: ${RUNPOD_API_KEY:}
+
+# Payments (future use - not connected yet)
+payment:
+  provider: ${PAYMENT_PROVIDER:}
+  secret-key: ${PAYMENT_SECRET_KEY:}
+  webhook-secret: ${PAYMENT_WEBHOOK_SECRET:}
