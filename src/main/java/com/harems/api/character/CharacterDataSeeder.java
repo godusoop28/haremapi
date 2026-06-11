@@ -1,11 +1,13 @@
 package com.harems.api.character;
 
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
 
+@Slf4j
 @Component
 @RequiredArgsConstructor
 public class CharacterDataSeeder implements CommandLineRunner {
@@ -14,6 +16,8 @@ public class CharacterDataSeeder implements CommandLineRunner {
 
     @Override
     public void run(String... args) {
+        log.info("Starting CharacterDataSeeder");
+
         List<Character> characters = buildCharacters();
 
         for (Character character : characters) {
@@ -21,6 +25,8 @@ public class CharacterDataSeeder implements CommandLineRunner {
                 characterRepository.save(character);
             }
         }
+
+        log.info("Finished CharacterDataSeeder");
     }
 
     private List<Character> buildCharacters() {
