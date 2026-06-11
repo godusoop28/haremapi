@@ -51,6 +51,11 @@ ai:
     title: ${OPENROUTER_TITLE:HAREMS}
     timeout-ms: ${OPENROUTER_TIMEOUT_MS:30000}
     history-size: ${OPENROUTER_HISTORY_SIZE:10}
+    temperature: ${OPENROUTER_TEMPERATURE:0.7}
+    max-tokens: ${OPENROUTER_MAX_TOKENS:150}
+    top-p: ${OPENROUTER_TOP_P:0.9}
+    frequency-penalty: ${OPENROUTER_FREQUENCY_PENALTY:0.2}
+    presence-penalty: ${OPENROUTER_PRESENCE_PENALTY:0.1}
 
 # Image generation integration (future use - not connected yet)
 image-generation:

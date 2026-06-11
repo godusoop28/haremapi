@@ -17,14 +17,17 @@ import java.util.List;
 public class AiChatService {
 
     private final String provider;
+    private final String model;
     private final OpenRouterChatProvider openRouterChatProvider;
     private final SimulatedAiChatProvider simulatedAiChatProvider;
 
     public AiChatService(
             @Value("${ai.provider}") String provider,
+            @Value("${ai.openrouter.model}") String model,
             OpenRouterChatProvider openRouterChatProvider,
             SimulatedAiChatProvider simulatedAiChatProvider) {
         this.provider = provider;
+        this.model = model;
         this.openRouterChatProvider = openRouterChatProvider;
         this.simulatedAiChatProvider = simulatedAiChatProvider;
     }
@@ -36,12 +39,13 @@ public class AiChatService {
         }
 
         try {
+            log.info("AI_PROVIDER=OPENROUTER (model={}) -> calling OpenRouter for character={}", model, character.getSlug());
             String reply = openRouterChatProvider.generateReply(character, history, userMessage);
             log.info("Reply generated via OpenRouter for character={}", character.getSlug());
             return reply;
         } catch (Exception e) {
-            log.error("OpenRouter call failed for character={}, falling back to SimulatedAiService: {}",
-                    character.getSlug(), e.getMessage(), e);
+            log.error("OpenRouter call failed for character={} (model={}), falling back to SimulatedAiService: {}",
+                    character.getSlug(), model, e.getMessage(), e);
             return simulatedAiChatProvider.generateReply(character, history, userMessage);
         }
     }
