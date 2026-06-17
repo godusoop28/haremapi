@@ -34,33 +34,46 @@ public class ImageGenerationService {
     private final ImagePromptBuilder promptBuilder;
 
     public ImageGenerationResponse generate(User user, ImageGenerationRequest request) {
+        log.info("Image generation requested — userId={} characterSlug={} provider={}",
+                user.getId(), request.characterSlug(), imageGenerationProvider.providerName());
+
         // 1. Validate plan
         Profile profile = profileService.getProfile(user);
         PlanType effectivePlan = profileService.resolveEffectivePlan(profile);
 
         if (effectivePlan == PlanType.FREE) {
+            log.warn("Image generation blocked by plan — userId={} plan=FREE", user.getId());
             throw new CharacterAccessDeniedException(
                     "La generación de imágenes está disponible solo para usuarios Premium o VIP.");
         }
+
+        log.info("Plan OK — userId={} effectivePlan={}", user.getId(), effectivePlan);
 
         // 2. Validate character
         Character character = characterService.getCharacterEntityBySlug(request.characterSlug());
         accessControlService.checkCharacterAccess(profile, character);
 
         if (!character.isImageGenerationEnabled()) {
+            log.warn("Image generation blocked — character has imageGenerationEnabled=false slug={}",
+                    request.characterSlug());
             throw new CharacterAccessDeniedException(
                     "Este personaje no tiene generación de imágenes habilitada.");
         }
 
         // 3. Check credits
         if (profile.getImageCredits() == null || profile.getImageCredits() <= 0) {
+            log.warn("Image generation blocked by credits — userId={} credits={}",
+                    user.getId(), profile.getImageCredits());
             throw new InsufficientCreditsException("No tienes créditos de imagen disponibles.");
         }
+
+        log.info("Credits OK — userId={} imageCredits={}", user.getId(), profile.getImageCredits());
 
         // 4. Moderate user prompt before doing anything else
         String userPrompt = request.userPrompt();
         if (userPrompt != null && !userPrompt.isBlank() && moderationService.isBlocked(userPrompt)) {
-            log.warn("Image prompt blocked for userId={} characterSlug={}", user.getId(), request.characterSlug());
+            log.warn("Image prompt blocked by moderation — userId={} characterSlug={}",
+                    user.getId(), request.characterSlug());
             imageGenerationRepository.save(ImageGeneration.builder()
                     .user(user)
                     .character(character)
@@ -77,12 +90,10 @@ public class ImageGenerationService {
         // 5. Build final prompt
         ImageGenerationInput input = promptBuilder.build(character, request);
 
-        log.info("Generating image for userId={} characterSlug={} provider={}",
-                user.getId(), request.characterSlug(), imageGenerationProvider.providerName());
-
-        // 6. Deduct credit (before calling provider to prevent race conditions; refunded on failure)
+        // 6. Deduct credit before calling provider (refunded on failure)
         profile.setImageCredits(profile.getImageCredits() - 1);
         profileRepository.save(profile);
+        log.info("Credit deducted — userId={} remainingCredits={}", user.getId(), profile.getImageCredits());
 
         // 7. Save PENDING record
         ImageGeneration generation = imageGenerationRepository.save(ImageGeneration.builder()
@@ -95,9 +106,12 @@ public class ImageGenerationService {
                 .creditsCost(1)
                 .build());
 
+        log.info("ImageGeneration saved as PENDING — id={} userId={} characterSlug={} provider={}",
+                generation.getId(), user.getId(), request.characterSlug(),
+                imageGenerationProvider.providerName());
+
         // 8. Call provider
         try {
-            log.info("Calling image provider for userId={} characterSlug={}", user.getId(), request.characterSlug());
             ImageGenerationResult result = imageGenerationProvider.generate(input);
 
             generation.setStatus(ImageStatus.COMPLETED);
@@ -106,8 +120,9 @@ public class ImageGenerationService {
             generation.setCompletedAt(LocalDateTime.now());
             imageGenerationRepository.save(generation);
 
-            log.info("Image generation completed for userId={} characterSlug={} jobId={}",
-                    user.getId(), request.characterSlug(), result.providerJobId());
+            log.info("Image generation completed — id={} userId={} characterSlug={} jobId={} imageUrl={}",
+                    generation.getId(), user.getId(), request.characterSlug(),
+                    result.providerJobId(), result.imageUrl());
 
             return new ImageGenerationResponse(
                     generation.getId(),
@@ -118,12 +133,13 @@ public class ImageGenerationService {
             );
 
         } catch (Exception e) {
-            log.error("Image generation failed for userId={} characterSlug={}: {}",
-                    user.getId(), request.characterSlug(), e.getMessage());
+            log.error("Image generation failed — id={} userId={} characterSlug={} cause={}",
+                    generation.getId(), user.getId(), request.characterSlug(), e.getMessage());
 
             // Refund credit
             profile.setImageCredits(profile.getImageCredits() + 1);
             profileRepository.save(profile);
+            log.info("Credit refunded — userId={} restoredCredits={}", user.getId(), profile.getImageCredits());
 
             generation.setStatus(ImageStatus.FAILED);
             generation.setErrorMessage(e.getMessage());

@@ -34,7 +34,7 @@ public class ImageGeneration {
     @Column(length = 500)
     private String userPrompt;
 
-    @Column(nullable = false, length = 3000)
+    @Column(length = 3000)
     private String prompt;
 
     private String imageUrl;
@@ -46,14 +46,14 @@ public class ImageGeneration {
     private String providerJobId;
 
     @Enumerated(EnumType.STRING)
-    @Column(nullable = false)
+    @Column(columnDefinition = "varchar(50) default 'PENDING'")
     private ImageStatus status;
 
     @Column(length = 1000)
     private String errorMessage;
 
     @Builder.Default
-    @Column(nullable = false)
+    @Column(name = "credits_cost", columnDefinition = "integer default 0")
     private Integer creditsCost = 0;
 
     @CreationTimestamp
