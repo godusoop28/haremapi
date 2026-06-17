@@ -31,16 +31,34 @@ public class ImageGeneration {
     @JoinColumn(name = "character_id", nullable = false)
     private Character character;
 
-    @Column(nullable = false, length = 2000)
+    @Column(length = 500)
+    private String userPrompt;
+
+    @Column(nullable = false, length = 3000)
     private String prompt;
 
     private String imageUrl;
+
+    @Column(length = 50)
+    private String provider;
+
+    @Column(length = 200)
+    private String providerJobId;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     private ImageStatus status;
 
+    @Column(length = 1000)
+    private String errorMessage;
+
+    @Builder.Default
+    @Column(nullable = false)
+    private Integer creditsCost = 0;
+
     @CreationTimestamp
     @Column(updatable = false)
     private LocalDateTime createdAt;
+
+    private LocalDateTime completedAt;
 }

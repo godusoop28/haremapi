@@ -6,9 +6,13 @@ public record AdminImageGenerationResponse(
         Long id,
         String userEmail,
         String characterSlug,
-        String prompt,
+        String userPrompt,
+        String promptFinal,
         String imageUrl,
         String status,
-        LocalDateTime createdAt
+        String provider,
+        Integer creditsCost,
+        LocalDateTime createdAt,
+        LocalDateTime completedAt
 ) {
 }

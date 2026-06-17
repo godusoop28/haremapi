@@ -122,10 +122,14 @@ public class AdminService {
                 generation.getId(),
                 generation.getUser().getEmail(),
                 generation.getCharacter().getSlug(),
+                generation.getUserPrompt(),
                 generation.getPrompt(),
                 generation.getImageUrl(),
                 generation.getStatus().name(),
-                generation.getCreatedAt()
+                generation.getProvider(),
+                generation.getCreditsCost(),
+                generation.getCreatedAt(),
+                generation.getCompletedAt()
         );
     }
 }

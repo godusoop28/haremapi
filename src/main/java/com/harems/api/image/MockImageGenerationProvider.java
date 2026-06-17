@@ -1,18 +1,24 @@
 package com.harems.api.image;
 
-import com.harems.api.character.Character;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
-/**
- * Temporary provider that does not generate any real image.
- * It simply returns the character's base portrait so the frontend has
- * something to display while the real provider (ComfyUI/RunPod) is built.
- */
+@Slf4j
 @Component
+@ConditionalOnProperty(name = "image.provider", havingValue = "MOCK", matchIfMissing = true)
 public class MockImageGenerationProvider implements ImageGenerationProvider {
 
     @Override
-    public String generateImage(Character character, String prompt) {
-        return character.getImageUrl();
+    public ImageGenerationResult generate(ImageGenerationInput input) {
+        log.info("[MOCK] Generating image for character={} prompt={}",
+                input.character().getSlug(),
+                input.positivePrompt().substring(0, Math.min(60, input.positivePrompt().length())) + "...");
+        return new ImageGenerationResult(input.character().getImageUrl(), "mock-job-" + System.currentTimeMillis());
+    }
+
+    @Override
+    public String providerName() {
+        return "MOCK";
     }
 }

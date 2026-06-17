@@ -1,8 +1,10 @@
 package com.harems.api.image.dto;
 
 public record ImageGenerationResponse(
+        Long id,
         String imageUrl,
-        Integer creditsRemaining,
-        String status
+        String characterSlug,
+        String status,
+        Integer creditsRemaining
 ) {
 }

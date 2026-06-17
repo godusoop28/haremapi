@@ -57,12 +57,18 @@ ai:
     frequency-penalty: ${OPENROUTER_FREQUENCY_PENALTY:0.2}
     presence-penalty: ${OPENROUTER_PRESENCE_PENALTY:0.1}
 
-# Image generation integration (future use - not connected yet)
-image-generation:
-  comfyui:
-    base-url: ${COMFYUI_BASE_URL:}
+# Image generation
+image:
+  provider: ${IMAGE_PROVIDER:MOCK}
+  default-width: ${IMAGE_DEFAULT_WIDTH:768}
+  default-height: ${IMAGE_DEFAULT_HEIGHT:1024}
+  default-steps: ${IMAGE_DEFAULT_STEPS:25}
+  default-cfg: ${IMAGE_DEFAULT_CFG:7.0}
+  generation-timeout-seconds: ${IMAGE_GENERATION_TIMEOUT_SECONDS:120}
   runpod:
     api-key: ${RUNPOD_API_KEY:}
+    endpoint-id: ${RUNPOD_ENDPOINT_ID:}
+    base-url: ${RUNPOD_BASE_URL:https://api.runpod.ai/v2}
 
 # Payments (future use - not connected yet)
 payment:
