@@ -16,10 +16,15 @@ import java.util.Map;
 
 /**
  * fal.ai image provider.
- * Supports fal-ai/flux/schnell (fast, default) and fal-ai/flux-pro/v1.1 (quality).
- * Activate with: IMAGE_PROVIDER=FAL
- * Required env: FAL_KEY
- * Optional env: FAL_IMAGE_MODEL, FAL_BASE_URL, IMAGE_GENERATION_TIMEOUT_SECONDS
+ *
+ * MODELOS SOPORTADOS (configura con FAL_IMAGE_MODEL):
+ *   fal-ai/flux/dev        — Calidad alta, adult content con enable_safety_checker=false (RECOMENDADO)
+ *   fal-ai/flux/schnell    — Rápido y barato, 4 pasos, adult content OK
+ *   fal-ai/flux-pro/v1.1   — Calidad máxima, safety_tolerance=6
+ *   fal-ai/flux-realism    — Estilo fotorrealista
+ *
+ * NOTA: fal-ai/fast-sdxl tiene filtro NSFW hardcodeado → imagen negra para adult content.
+ * NO usar fast-sdxl para contenido adulto.
  */
 @Slf4j
 @Component
@@ -32,7 +37,7 @@ public class FalImageProvider implements ImageGenerationProvider {
 
     public FalImageProvider(
             @Value("${image.fal.api-key:}") String apiKey,
-            @Value("${image.fal.model:fal-ai/flux/schnell}") String model,
+            @Value("${image.fal.model:fal-ai/flux/dev}") String model,
             @Value("${image.fal.base-url:https://fal.run}") String baseUrl,
             @Value("${image.generation-timeout-seconds:60}") int timeoutSeconds
     ) {
@@ -41,6 +46,10 @@ public class FalImageProvider implements ImageGenerationProvider {
         }
         this.model = model;
         this.baseUrl = baseUrl;
+
+        if (model.contains("fast-sdxl") || (model.contains("sdxl") && !model.contains("xl-lightning"))) {
+            log.warn("[FAL] ADVERTENCIA: {} tiene filtro NSFW hardcodeado. Para contenido adulto usa fal-ai/flux/dev", model);
+        }
 
         SimpleClientHttpRequestFactory factory = new SimpleClientHttpRequestFactory();
         factory.setConnectTimeout(10_000);
@@ -56,10 +65,13 @@ public class FalImageProvider implements ImageGenerationProvider {
     @Override
     public ImageGenerationResult generate(ImageGenerationInput input) {
         String characterSlug = input.character().getSlug();
-        log.info("[FAL] Generating image — model={} character={}", model, characterSlug);
+        log.info("[FAL] Generating image — model={} character={} size={}x{}",
+                model, characterSlug, input.width(), input.height());
 
         Map<String, Object> body = buildRequestBody(input);
         String url = baseUrl + "/" + model;
+
+        log.debug("[FAL] Request body keys={}", body.keySet());
 
         try {
             JsonNode response = restClient.post()
@@ -83,58 +95,71 @@ public class FalImageProvider implements ImageGenerationProvider {
         }
     }
 
+    private Map<String, Object> buildRequestBody(ImageGenerationInput input) {
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("prompt", input.positivePrompt());
+        body.put("num_images", 1);
+
+        boolean isFlux = isFluxModel();
+
+        if (isFlux) {
+            // FLUX: desactiva el safety checker para permitir contenido adulto
+            body.put("enable_safety_checker", false);
+
+            // FLUX acepta imagen como objeto {width, height} para dimensiones exactas
+            body.put("image_size", Map.of("width", input.width(), "height", input.height()));
+
+            // Pasos por tipo de modelo
+            if (model.contains("schnell")) {
+                body.put("num_inference_steps", 4);
+            } else if (model.contains("flux/dev") || model.contains("flux-dev")) {
+                body.put("num_inference_steps", 28);
+            }
+            // flux-pro/v1.1: safety_tolerance "6" = más permisivo posible
+            if (model.contains("flux-pro") || model.contains("flux/pro")) {
+                body.put("safety_tolerance", "6");
+                body.remove("enable_safety_checker"); // flux-pro usa safety_tolerance, no enable_safety_checker
+            }
+        } else {
+            // SDXL y otros: width/height directamente
+            body.put("width", input.width());
+            body.put("height", input.height());
+            body.put("enable_safety_checker", false);
+
+            // Para SDXL: negative prompt ayuda a guiar el modelo
+            if (!input.negativePrompt().isBlank()) {
+                body.put("negative_prompt", input.negativePrompt());
+            }
+        }
+
+        return body;
+    }
+
+    private boolean isFluxModel() {
+        return model.contains("flux");
+    }
+
     private ImageGenerationResult handleClientError(HttpClientErrorException e, String characterSlug) {
         int status = e.getStatusCode().value();
-        String body = e.getResponseBodyAsString();
+        String responseBody = e.getResponseBodyAsString();
         switch (status) {
             case 401 -> {
                 log.error("[FAL] Unauthorized — FAL_KEY inválida o expirada. character={}", characterSlug);
                 throw new RuntimeException("Servicio de imágenes no autorizado. Contacta al soporte.");
             }
             case 422 -> {
-                log.error("[FAL] Payload inválido — character={} body={}", characterSlug, body);
-                throw new RuntimeException("No se pudo procesar la solicitud de imagen.");
+                log.error("[FAL] Payload inválido — character={} body={}", characterSlug, responseBody);
+                throw new RuntimeException("No se pudo procesar la solicitud de imagen. Verifica el modelo configurado.");
             }
             case 429 -> {
                 log.warn("[FAL] Rate limit alcanzado — character={}", characterSlug);
                 throw new RuntimeException("Límite de generación alcanzado. Intenta en unos minutos.");
             }
             default -> {
-                log.error("[FAL] Client error {} — character={} body={}", status, characterSlug, body);
-                throw new RuntimeException("Error al generar la imagen. Inténtalo de nuevo.");
+                log.error("[FAL] Client error {} — character={} body={}", status, characterSlug, responseBody);
+                throw new RuntimeException("Error al generar la imagen (" + status + "). Inténtalo de nuevo.");
             }
         }
-    }
-
-    private Map<String, Object> buildRequestBody(ImageGenerationInput input) {
-        Map<String, Object> body = new LinkedHashMap<>();
-        body.put("prompt", input.positivePrompt());
-        body.put("num_images", 1);
-        body.put("enable_safety_checker", false);
-        body.put("image_size", resolveImageSize(input.width(), input.height()));
-
-        if (model.contains("schnell")) {
-            body.put("num_inference_steps", 4);
-        }
-
-        // flux-pro/v1.1: safety_tolerance "6" = most permissive (allows adult content)
-        if (model.contains("flux-pro") || model.contains("flux/pro")) {
-            body.put("safety_tolerance", "6");
-        }
-
-        // Add negative prompt only for models that support it (non-FLUX SD-based)
-        if (!input.negativePrompt().isBlank()
-                && (model.contains("stable-diffusion") || model.contains("sdxl"))) {
-            body.put("negative_prompt", input.negativePrompt());
-        }
-
-        return body;
-    }
-
-    private String resolveImageSize(int width, int height) {
-        if (width == height) return "square";
-        if (width > height) return "landscape_4_3";
-        return "portrait_4_3";
     }
 
     private ImageGenerationResult parseResponse(JsonNode response, String characterSlug) {
@@ -146,7 +171,7 @@ public class FalImageProvider implements ImageGenerationProvider {
         JsonNode images = response.path("images");
         if (!images.isArray() || images.isEmpty()) {
             log.error("[FAL] Sin imágenes en respuesta para character={}: {}", characterSlug, response);
-            throw new RuntimeException("fal.ai no generó ninguna imagen.");
+            throw new RuntimeException("fal.ai no generó ninguna imagen. Es posible que el modelo haya bloqueado el contenido.");
         }
 
         String imageUrl = images.get(0).path("url").asText(null);
@@ -158,7 +183,7 @@ public class FalImageProvider implements ImageGenerationProvider {
         long seed = response.path("seed").asLong(0L);
         String jobId = "fal-" + seed;
 
-        log.info("[FAL] Imagen generada — character={} url={} seed={}", characterSlug, imageUrl, seed);
+        log.info("[FAL] Imagen generada exitosamente — character={} url={} seed={}", characterSlug, imageUrl, seed);
         return new ImageGenerationResult(imageUrl, jobId);
     }
 

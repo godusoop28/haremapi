@@ -59,15 +59,17 @@ ai:
 image:
   # Options: MOCK | FAL | RUNPOD
   provider: ${IMAGE_PROVIDER:MOCK}
-  default-width: ${IMAGE_DEFAULT_WIDTH:768}
-  default-height: ${IMAGE_DEFAULT_HEIGHT:1024}
-  generation-timeout-seconds: ${IMAGE_GENERATION_TIMEOUT_SECONDS:60}
+  # Soporta tanto DEFAULT_IMAGE_WIDTH (tu env) como IMAGE_DEFAULT_WIDTH (legacy)
+  default-width: ${DEFAULT_IMAGE_WIDTH:${IMAGE_DEFAULT_WIDTH:768}}
+  default-height: ${DEFAULT_IMAGE_HEIGHT:${IMAGE_DEFAULT_HEIGHT:1024}}
+  # Soporta tanto FAL_TIMEOUT_SECONDS (tu env) como IMAGE_GENERATION_TIMEOUT_SECONDS (legacy)
+  generation-timeout-seconds: ${FAL_TIMEOUT_SECONDS:${IMAGE_GENERATION_TIMEOUT_SECONDS:60}}
 
   fal:
-    # Primary: FAL_KEY. Fallback: FAL_API_KEY
+    # FAL_KEY (primero) o FAL_API_KEY (fallback)
     api-key: ${FAL_KEY:${FAL_API_KEY:}}
-    # fal-ai/flux/schnell (fast/testing) or fal-ai/flux-pro/v1.1 (quality)
-    model: ${FAL_IMAGE_MODEL:fal-ai/flux/schnell}
+    # Cambiar a fal-ai/flux/dev en Render para contenido adulto
+    model: ${FAL_IMAGE_MODEL:fal-ai/flux/dev}
     base-url: ${FAL_BASE_URL:https://fal.run}
 
   runpod:
