@@ -116,8 +116,16 @@ public class FalImageProvider implements ImageGenerationProvider {
         if (model.contains("schnell")) {
             body.put("num_inference_steps", 4);
         }
+
+        // flux-pro/v1.1: safety_tolerance "6" = most permissive (allows adult content)
         if (model.contains("flux-pro") || model.contains("flux/pro")) {
-            body.put("safety_tolerance", "5");
+            body.put("safety_tolerance", "6");
+        }
+
+        // Add negative prompt only for models that support it (non-FLUX SD-based)
+        if (!input.negativePrompt().isBlank()
+                && (model.contains("stable-diffusion") || model.contains("sdxl"))) {
+            body.put("negative_prompt", input.negativePrompt());
         }
 
         return body;

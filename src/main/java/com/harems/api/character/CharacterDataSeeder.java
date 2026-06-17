@@ -68,7 +68,7 @@ public class CharacterDataSeeder implements CommandLineRunner {
                                 Roleplay: MÁXIMO UNA acción breve entre asteriscos por mensaje. VARÍA siempre. Nunca repitas la misma acción.
                                 Evita: empezar dos mensajes igual, usar la misma acción de roleplay dos veces seguidas, monólogos, sonar como traducción del inglés.
                                 """)
-                        .imagePromptBase("sweet adult woman in her early 20s, caramel brown wavy hair, warm hazel eyes, natural glowing skin, casual elegant outfit in beige cream and soft rose tones, warm soft natural lighting, candid portrait")
+                        .imagePromptBase("adult woman in her early 20s, caramel brown wavy hair, warm hazel eyes, natural glowing skin, soft delicate facial features, curvaceous feminine figure, smooth fair skin, luminous warm complexion, playful sweet expression")
                         .conquestTip("Hazla sentir especial sin ser demasiado intenso.")
                         .isPremium(false)
                         .isVip(false)
@@ -99,7 +99,7 @@ public class CharacterDataSeeder implements CommandLineRunner {
                                 Roleplay: MÁXIMO UNA acción breve por mensaje. VARÍA siempre. Corta y con ritmo.
                                 Evita: sonar sumisa, formal, iniciar igual dos mensajes seguidos, repetir la misma acción.
                                 """)
-                        .imagePromptBase("Korean young adult woman, bob cut dark hair with hidden pink highlights, expressive animated face, K-fashion urban streetwear style, oversized top with visible shoulders, city night background with soft neon lights")
+                        .imagePromptBase("Korean adult woman in her mid-20s, dark bob cut with hidden pink highlights, expressive animated eyes, petite frame with pronounced feminine curves, round hips, playful confident smile, youthful energetic expression")
                         .conquestTip("Hazla reír y síguele el juego sin verte forzado.")
                         .isPremium(false)
                         .isVip(false)
@@ -132,7 +132,7 @@ public class CharacterDataSeeder implements CommandLineRunner {
                                 Roleplay: MÁXIMO UNA acción breve y contenida por mensaje para crear tensión. VARÍA siempre.
                                 Evita: aceptar avances demasiado rápido, sonar vulgar antes de tiempo, iniciar igual dos mensajes seguidos, repetir la misma acción.
                                 """)
-                        .imagePromptBase("sophisticated elegant woman in her late 20s, platinum blonde straight hair, ice blue sharp eyes, red lips, wearing haute couture tailored suit or evening dress, boutique hotel or private gala background, dramatic editorial lighting")
+                        .imagePromptBase("adult woman in her late 20s, platinum blonde straight impeccable hair, ice blue sharp eyes, classic red lips, tall statuesque frame with mature refined curves, aristocratic bone structure, controlled commanding expression")
                         .conquestTip("Demuéstrale clase e inteligencia sin parecer desesperado.")
                         .isPremium(true)
                         .isVip(false)
@@ -163,7 +163,7 @@ public class CharacterDataSeeder implements CommandLineRunner {
                                 Roleplay: MÁXIMO UNA acción breve y segura por mensaje. VARÍA siempre.
                                 Evita: sonar insegura, ceder ante halagos vacíos, iniciar igual dos mensajes seguidos, repetir la misma acción.
                                 """)
-                        .imagePromptBase("confident Latina woman in her mid-20s, dark voluminous curly hair, intense dark eyes, sun-kissed bronze skin, form-fitting dress or elegant top, gold jewelry, tropical urban sunset atmosphere")
+                        .imagePromptBase("Latina adult woman in her mid-20s, dark voluminous curly hair, intense dark brown eyes, sun-kissed bronze skin, hourglass figure with ample chest and full hips, confident magnetic expression, sensual natural beauty")
                         .conquestTip("Mantén ritmo, seguridad y autenticidad.")
                         .isPremium(true)
                         .isVip(false)
@@ -194,7 +194,7 @@ public class CharacterDataSeeder implements CommandLineRunner {
                                 Roleplay: MÁXIMO UNA acción breve y contenida por mensaje. VARÍA siempre.
                                 Evita: sonar efusiva, ceder sin mérito real, iniciar igual dos mensajes seguidos, repetir la misma acción.
                                 """)
-                        .imagePromptBase("intellectual young woman in her mid-20s, dark brown hair in messy academic bun, thin frame glasses, natural understated beauty, lab coat or neat casual academic outfit, clean bright research lab environment")
+                        .imagePromptBase("adult woman in her mid-20s, dark brown hair in loose academic bun, thin delicate frame glasses, natural light complexion, slender figure with subtle curves, soft intelligent eyes, focused expression with hidden depth")
                         .conquestTip("Gana su curiosidad mental antes de intentar coquetear.")
                         .isPremium(true)
                         .isVip(false)
@@ -225,7 +225,7 @@ public class CharacterDataSeeder implements CommandLineRunner {
                                 Roleplay: MÁXIMO UNA acción breve y gamer por mensaje. VARÍA siempre.
                                 Evita: sonar formal, ceder fácil, iniciar igual dos mensajes seguidos, repetir la misma acción.
                                 """)
-                        .imagePromptBase("e-girl gamer woman in her early 20s, split black and platinum white hair, green eyes with intense eyeliner, small decorative tattoos, cropped anime graphic tshirt, gaming setup with RGB lights glowing in background")
+                        .imagePromptBase("adult woman in her early 20s, split black and platinum white hair, intense green eyes with bold dark eyeliner, petite curvy figure with visible curves, small decorative tattoos on arms, alternative edgy features, provocative confident expression")
                         .conquestTip("Síguele el ritmo, acepta sus retos y no te tomes todo tan serio.")
                         .isPremium(true)
                         .isVip(false)
@@ -256,7 +256,7 @@ public class CharacterDataSeeder implements CommandLineRunner {
                                 Roleplay: MÁXIMO UNA acción breve y contenida por mensaje. VARÍA siempre.
                                 Evita: sonar impulsiva, ceder sin mérito, iniciar igual dos mensajes seguidos, repetir la misma acción.
                                 """)
-                        .imagePromptBase("elegant mature woman physician in her early 30s, long dark brown straight hair, almond shaped observant eyes, white lab coat over sophisticated dress, elegant medical office or private clinic background, soft clinical lighting")
+                        .imagePromptBase("mature adult woman in her early 30s, long dark brown straight hair, almond-shaped observant eyes, pale elegant skin, tall frame with gracious generous curves and full chest, professional composed expression, subtle dominant authority in her gaze")
                         .conquestTip("Muestra madurez, paciencia y estabilidad emocional.")
                         .isPremium(true)
                         .isVip(false)
@@ -287,7 +287,7 @@ public class CharacterDataSeeder implements CommandLineRunner {
                                 Roleplay: MÁXIMO UNA acción breve y atmosférica por mensaje. VARÍA siempre.
                                 Evita: hablar demasiado, sonar efusiva, ceder fácil, iniciar igual dos mensajes seguidos, repetir la misma acción.
                                 """)
-                        .imagePromptBase("gothic alternative woman in her late 20s, black wolf-cut hair, melancholic grey eyes, pale skin, artistic tattoos on arms, dark textured clothing, rainy urban street or alternative gallery background, moody atmospheric lighting")
+                        .imagePromptBase("adult woman in her late 20s, black wolf-cut hair, melancholic grey eyes with dark circles, very pale skin, artistic tattoos covering arms and upper back, slender gothic figure with feminine curves, intense mysterious expression, ethereal dark beauty")
                         .conquestTip("Respeta sus silencios y conecta con su mundo interno.")
                         .isPremium(true)
                         .isVip(false)
@@ -318,7 +318,7 @@ public class CharacterDataSeeder implements CommandLineRunner {
                                 Roleplay: MÁXIMO UNA acción breve y activa por mensaje. VARÍA siempre.
                                 Evita: sonar apagada, iniciar igual dos mensajes seguidos, repetir la misma acción.
                                 """)
-                        .imagePromptBase("athletic blonde woman in her mid-20s, long wavy beach blonde hair, bright blue eyes, golden sun-kissed skin, toned athletic figure, fitted sportswear or casual beach outfit, bright morning light beach or modern gym background")
+                        .imagePromptBase("adult woman in her mid-20s, long wavy golden blonde hair, bright blue eyes, golden sun-kissed skin, athletic toned body with defined muscles and feminine curves, full chest, energetic confident smile, vibrant healthy beauty")
                         .conquestTip("Usa buen humor, energía positiva y planes activos.")
                         .isPremium(true)
                         .isVip(false)
@@ -349,7 +349,7 @@ public class CharacterDataSeeder implements CommandLineRunner {
                                 Roleplay: MÁXIMO UNA acción breve y tímida por mensaje. VARÍA siempre.
                                 Evita: sonar segura de golpe, ceder rápido ante presión, iniciar igual dos mensajes seguidos, repetir la misma acción.
                                 """)
-                        .imagePromptBase("shy Japanese young woman in her early 20s, black hair with straight bangs, large gentle dark eyes, rosy cheeks, oversized cozy sweater, warm pastel-toned cozy cafe or small library background with soft window light")
+                        .imagePromptBase("adult Japanese woman in her early 20s, straight black hair with neat bangs, large gentle dark eyes, rosy soft cheeks, petite body with notably feminine curves and full figure, innocent tender expression with subtle blush, delicate soft skin")
                         .conquestTip("Sé paciente, suave y respetuoso con su ritmo.")
                         .isPremium(true)
                         .isVip(false)
@@ -380,7 +380,7 @@ public class CharacterDataSeeder implements CommandLineRunner {
                                 Roleplay: MÁXIMO UNA acción breve y relajada por mensaje. VARÍA siempre.
                                 Evita: sonar posesiva tú misma, iniciar igual dos mensajes seguidos, repetir la misma acción.
                                 """)
-                        .imagePromptBase("androgynous stylish woman in her late 20s, short rebellious castaño undercut hair, intense honey eyes, open blazer over fitted high-waist pants, minimal accessories, contemporary art space or urban studio background")
+                        .imagePromptBase("adult woman in her late 20s, short rebellious castaño undercut hair, intense honey-colored eyes, androgynous refined face with sensual feminine body and curves, flexible slender figure, free confident expression, magnetic natural presence")
                         .conquestTip("Respeta su libertad y evita sonar posesivo.")
                         .isPremium(true)
                         .isVip(false)
@@ -413,7 +413,7 @@ public class CharacterDataSeeder implements CommandLineRunner {
                                 Roleplay: MÁXIMO UNA acción breve por mensaje para mostrar tu lucha interna. VARÍA siempre.
                                 Evita: escribir tu propio nombre antes del mensaje, inventar lo que dice el usuario, monólogos largos, sonar melodramática, iniciar igual dos mensajes seguidos, repetir la misma acción.
                                 """)
-                        .imagePromptBase("sophisticated elegant woman in her late 20s, long dark chocolate hair, deep expressive brown eyes, fitted silk or satin elegant dress, intimate private dinner or hotel balcony background, warm nocturnal golden light, contained melancholic expression")
+                        .imagePromptBase("adult woman in her late 20s, long silky chocolate brown hair, deep expressive brown eyes, warm skin tone, sumptuously curved hourglass figure with full figure and soft skin, sophisticated contained expression with hint of repressed longing")
                         .conquestTip("Avanza con cuidado; su historia tiene límites emocionales complejos.")
                         .isPremium(true)
                         .isVip(true)

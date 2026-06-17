@@ -2,14 +2,23 @@ package com.harems.api.image;
 
 import com.harems.api.character.Character;
 import com.harems.api.image.dto.ImageGenerationRequest;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 /**
- * Builds image generation prompts optimised for FLUX-family models (fal.ai).
- * The character's imagePromptBase provides the visual foundation;
- * style, mood and the user's optional hint enrich it.
+ * Builds image generation prompts for fal.ai (FLUX family).
+ *
+ * Supports four adult levels:
+ *   SAFE     – fully clothed, portrait/editorial
+ *   SENSUAL  – revealing but no nudity, alluring pose (default)
+ *   NUDE     – adult tasteful nudity, fictional adult character
+ *   EXPLICIT – direct adult scene, fictional consensual adult content
+ *
+ * The {@link #buildWithContext} entry-point uses the analyzed conversation
+ * context to produce a prompt that feels like a visual continuation of the chat.
  */
+@Slf4j
 @Service
 public class ImagePromptBuilder {
 
@@ -19,77 +28,178 @@ public class ImagePromptBuilder {
     @Value("${image.default-height:1024}")
     private int defaultHeight;
 
-    public ImageGenerationInput build(Character character, ImageGenerationRequest request) {
-        String base     = character.getImagePromptBase();
-        String style    = resolveStyle(request.style());
-        String mood     = resolveMood(request.mood());
-        String userHint = buildUserHint(request.userPrompt());
+    // ── Main entry-point ──────────────────────────────────────────────────────
 
-        // FLUX responds best to descriptive, natural-language prompts.
-        // Structure: [character visual base], [style], [mood/scene], [user hint], quality tags
-        String positivePrompt = String.format(
-                "%s, %s, %s atmosphere%s, " +
-                "fictional adult character, cinematic portrait, " +
-                "professional photography lighting, beautiful, high quality, detailed",
-                base, style, mood, userHint
-        );
+    /**
+     * Build a contextual image prompt using conversation analysis.
+     */
+    public ImageGenerationInput buildWithContext(
+            Character character,
+            ImageGenerationRequest request,
+            ImageContextAnalysis context
+    ) {
+        AdultLevel level = context.adultLevel();
+        String mood      = context.mood();
+        String scene     = overrideScene(request.scene(), context.scene());
+        String poseHint  = override(request.pose(), context.poseIntent());
+        String style     = resolveStyle(request.style());
+        String userHint  = sanitizeUserHint(request.userPrompt());
 
-        // Negative prompt kept minimal — FLUX handles content guidance internally.
-        // Kept for backward compatibility with SDXL-based providers.
-        String negativePrompt =
-                "minor, child, underage, real person, celebrity, violence, " +
-                "ugly, blurry, deformed, bad anatomy, watermark, low quality";
+        String positivePrompt = buildPositivePrompt(character, level, mood, scene, poseHint, style, userHint);
+        String negativePrompt = buildNegativePrompt(level);
 
-        int[] dimensions = resolveDimensions(request.aspectRatio());
+        int[] dims = resolveDimensions(request.aspectRatio());
 
-        return new ImageGenerationInput(
-                positivePrompt,
-                negativePrompt,
-                dimensions[0],
-                dimensions[1],
-                4,    // steps (fixed for flux/schnell; ignored by fal for flux-pro)
-                1.0f, // cfg (not used by FLUX)
-                character
-        );
+        log.info("[Prompt] char={} level={} mood={} scene='{}' style={} hint='{}'",
+                character.getSlug(), level, mood, truncate(scene, 60), style, truncate(userHint, 40));
+        log.debug("[Prompt] positive='{}'", truncate(positivePrompt, 120));
+
+        return new ImageGenerationInput(positivePrompt, negativePrompt, dims[0], dims[1], 4, 1.0f, character);
     }
+
+    /** Backward-compat: build without context (uses SENSUAL default). */
+    public ImageGenerationInput build(Character character, ImageGenerationRequest request) {
+        ImageContextAnalysis defaults = ImageContextAnalysis.defaults(
+                AdultLevel.SENSUAL, "confident sensual", "intimate private room with soft lighting");
+        return buildWithContext(character, request, defaults);
+    }
+
+    // ── Prompt construction ───────────────────────────────────────────────────
+
+    private String buildPositivePrompt(
+            Character character,
+            AdultLevel level,
+            String mood,
+            String scene,
+            String poseHint,
+            String style,
+            String userHint
+    ) {
+        String base     = character.getImagePromptBase();
+        String adultTag = adultContentTag(level, character, mood, userHint);
+        String quality  = qualityTags(level);
+        String safety   = safetyTags(level);
+
+        // Structure: [character base] + [adult content / pose] + [scene] + [mood] + [style] + [quality] + [safety]
+        StringBuilder sb = new StringBuilder();
+        sb.append(base);
+        sb.append(", ").append(adultTag);
+        sb.append(", ").append(scene);
+        sb.append(", ").append(mood).append(" atmosphere");
+        sb.append(", ").append(style);
+        if (!userHint.isBlank()) sb.append(", ").append(userHint);
+        sb.append(", ").append(quality);
+        sb.append(", ").append(safety);
+
+        return sb.toString();
+    }
+
+    private String adultContentTag(AdultLevel level, Character character, String mood, String userHint) {
+        return switch (level) {
+            case SAFE -> "fully clothed, elegant stylish outfit, confident natural pose";
+
+            case SENSUAL -> "revealing alluring outfit, suggestive sensual pose, "
+                    + "partially exposed, inviting expression, intimate body language";
+
+            case NUDE -> {
+                // Emphasize it's a fictional adult, tasteful nude
+                String base = "nude, no clothing, completely bare, tasteful adult nudity, "
+                        + "natural confident nude pose, visible bare body, "
+                        + "anatomically natural and proportional, adult fine art nude";
+                // Add userHint specifics if they describe the nude scene
+                yield base;
+            }
+
+            case EXPLICIT -> {
+                String base = "explicit adult scene, no clothing, nude, "
+                        + "direct adult sexual pose, fictional adult erotica, "
+                        + "consensual adult content, provocative explicit pose";
+                yield base;
+            }
+        };
+    }
+
+    private String qualityTags(AdultLevel level) {
+        String base = "high quality, detailed, beautiful, professional lighting, sharp focus";
+        return switch (level) {
+            case SAFE, SENSUAL -> base + ", cinematic portrait";
+            case NUDE          -> base + ", premium adult art, soft intimate lighting, skin texture detail";
+            case EXPLICIT      -> base + ", premium adult art, vivid, skin detail";
+        };
+    }
+
+    private String safetyTags(AdultLevel level) {
+        return switch (level) {
+            case SAFE, SENSUAL ->
+                    "fictional adult character, over 18, no minors, no real person, no celebrity";
+            case NUDE, EXPLICIT ->
+                    "fictional adult character, over 18, all characters are adults, "
+                            + "no minors, no real person, no celebrity, no deepfake, consensual";
+        };
+    }
+
+    /**
+     * Negative prompt — for SAFE/SENSUAL we block nudity to keep them clean.
+     * For NUDE/EXPLICIT we do NOT block nudity (that's the intent).
+     * For FLUX models, this is largely ignored but kept for non-FLUX compatibility.
+     */
+    private String buildNegativePrompt(AdultLevel level) {
+        // Always block
+        String hardBlocks = "minor, child, underage, loli, shota, preteen, teen under 18, "
+                + "real person, celebrity, famous person, deepfake, face swap, "
+                + "rape, non-consensual, coercion, forced, violence, gore, "
+                + "ugly, deformed, blurry, bad anatomy, extra limbs, missing limbs, "
+                + "watermark, text, logo, signature";
+
+        return switch (level) {
+            case SAFE     -> hardBlocks + ", nude, naked, explicit, nsfw";
+            case SENSUAL  -> hardBlocks + ", fully nude, explicit nudity, nsfw";
+            case NUDE, EXPLICIT -> hardBlocks;
+        };
+    }
+
+    // ── Style resolution ──────────────────────────────────────────────────────
 
     private String resolveStyle(String style) {
-        if (style == null || style.isBlank()) {
-            return "semi-realistic anime art style";
-        }
+        if (style == null || style.isBlank()) return "semi-realistic anime art style";
         return switch (style.toLowerCase()) {
-            case "anime"                  -> "anime illustration style";
-            case "realistic"              -> "photorealistic photography style";
-            case "premium-realistic-anime" -> "semi-realistic anime art style";
-            default                       -> "semi-realistic anime art style";
+            case "anime"                   -> "anime illustration style";
+            case "realistic"               -> "photorealistic style, ultra detailed";
+            case "premium-realistic-anime" -> "semi-realistic anime art style, premium quality";
+            default                        -> "semi-realistic anime art style";
         };
     }
 
-    private String resolveMood(String mood) {
-        if (mood == null || mood.isBlank()) return "elegant and confident";
-        return switch (mood.toLowerCase()) {
-            case "sensual"    -> "sensual and confident";
-            case "playful"    -> "playful and joyful";
-            case "mysterious" -> "mysterious and intriguing";
-            case "romantic"   -> "romantic and warm";
-            default           -> "elegant and confident";
-        };
-    }
+    // ── Helpers ───────────────────────────────────────────────────────────────
 
-    private String buildUserHint(String userPrompt) {
+    private String sanitizeUserHint(String userPrompt) {
         if (userPrompt == null || userPrompt.isBlank()) return "";
-        String sanitized = userPrompt
+        String cleaned = userPrompt
                 .replaceAll("[<>\"'{}|\\\\^`]", "")
                 .replaceAll("\\s+", " ")
                 .trim();
-        if (sanitized.isBlank()) return "";
-        int maxLen = Math.min(sanitized.length(), 150);
-        return ", " + sanitized.substring(0, maxLen);
+        if (cleaned.isBlank()) return "";
+        int max = Math.min(cleaned.length(), 180);
+        return cleaned.substring(0, max);
+    }
+
+    private String overrideScene(String fromRequest, String fromContext) {
+        if (fromRequest != null && !fromRequest.isBlank()) return fromRequest.trim();
+        return fromContext;
+    }
+
+    private String override(String explicit, String fallback) {
+        return (explicit != null && !explicit.isBlank()) ? explicit.trim() : fallback;
     }
 
     private int[] resolveDimensions(String aspectRatio) {
         if ("landscape".equalsIgnoreCase(aspectRatio)) return new int[]{defaultHeight, defaultWidth};
         if ("square".equalsIgnoreCase(aspectRatio))    return new int[]{768, 768};
         return new int[]{defaultWidth, defaultHeight}; // portrait default
+    }
+
+    private String truncate(String s, int max) {
+        if (s == null) return "";
+        return s.length() > max ? s.substring(0, max) + "…" : s;
     }
 }
