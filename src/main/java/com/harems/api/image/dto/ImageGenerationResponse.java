@@ -5,6 +5,9 @@ public record ImageGenerationResponse(
         String imageUrl,
         String characterSlug,
         String status,
-        Integer creditsRemaining
+        Integer creditsRemaining,
+        Integer creditsCost,
+        boolean highTrust,
+        int messageCount
 ) {
 }

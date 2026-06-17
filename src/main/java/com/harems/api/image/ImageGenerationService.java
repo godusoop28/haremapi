@@ -49,83 +49,78 @@ public class ImageGenerationService {
                 user.getId(), request.characterSlug(),
                 imageGenerationProvider.providerName(), request.adultLevel());
 
-        // 1. Validate plan
+        // 1. Validar plan
         Profile profile = profileService.getProfile(user);
         PlanType effectivePlan = profileService.resolveEffectivePlan(profile);
-
         if (effectivePlan == PlanType.FREE) {
-            log.warn("Image generation blocked by plan — userId={}", user.getId());
             throw new CharacterAccessDeniedException(
                     "La generación de imágenes está disponible solo para usuarios Premium o VIP.");
         }
 
-        // 2. Validate character
+        // 2. Validar personaje
         Character character = characterService.getCharacterEntityBySlug(request.characterSlug());
         accessControlService.checkCharacterAccess(profile, character);
-
         if (!character.isImageGenerationEnabled()) {
-            log.warn("Image generation blocked — imageGenerationEnabled=false slug={}", request.characterSlug());
-            throw new CharacterAccessDeniedException(
-                    "Este personaje no tiene generación de imágenes habilitada.");
+            throw new CharacterAccessDeniedException("Este personaje no tiene generación de imágenes habilitada.");
         }
 
-        // 3. Check credits
-        if (profile.getImageCredits() == null || profile.getImageCredits() <= 0) {
-            log.warn("Image generation blocked — no credits userId={}", user.getId());
-            throw new InsufficientCreditsException("No tienes créditos de imagen disponibles.");
+        // 3. Contar mensajes totales con este personaje → determina confianza y coste
+        int totalMessages  = countTotalMessages(user, character);
+        int creditCost     = computeCreditCost(totalMessages, character);
+        boolean highTrust  = creditCost == 1;
+
+        log.info("Trust check — userId={} characterSlug={} totalMessages={} creditCost={} highTrust={}",
+                user.getId(), request.characterSlug(), totalMessages, creditCost, highTrust);
+
+        // 4. Validar créditos según coste real
+        if (profile.getImageCredits() == null || profile.getImageCredits() < creditCost) {
+            String msg = creditCost > 1
+                    ? String.format("Necesitas %d créditos para generar con %s (confianza baja — chatea más con ella).",
+                            creditCost, character.getName())
+                    : "No tienes créditos de imagen disponibles.";
+            throw new InsufficientCreditsException(msg);
         }
 
-        // 4. Moderate user prompt (only blocks illegal / unsafe content — NOT adult fiction)
+        // 5. Moderar prompt del usuario
         String userPrompt = request.userPrompt();
         if (userPrompt != null && !userPrompt.isBlank() && moderationService.isBlocked(userPrompt)) {
-            log.warn("Image prompt blocked by moderation — userId={} characterSlug={}",
-                    user.getId(), request.characterSlug());
+            log.warn("Image prompt blocked by moderation — userId={} characterSlug={}", user.getId(), request.characterSlug());
             imageGenerationRepository.save(ImageGeneration.builder()
-                    .user(user)
-                    .character(character)
-                    .userPrompt(userPrompt)
-                    .prompt("BLOCKED")
-                    .provider("NONE")
-                    .status(ImageStatus.BLOCKED)
-                    .creditsCost(0)
+                    .user(user).character(character).userPrompt(userPrompt)
+                    .prompt("BLOCKED").provider("NONE").status(ImageStatus.BLOCKED).creditsCost(0)
                     .build());
             throw new PromptBlockedException(
                     "Ese tipo de imagen no está permitido. Solo se generan imágenes ficticias adultas consensuadas.");
         }
 
-        // 5. Fetch recent conversation context (last N messages)
+        // 6. Obtener mensajes recientes para contexto visual
         List<Message> recentMessages = fetchRecentMessages(user, character);
-        log.info("Context messages fetched — userId={} characterSlug={} count={}",
-                user.getId(), request.characterSlug(), recentMessages.size());
 
-        // 6. Analyze context → determine adultLevel, mood, scene
+        // 7. Analizar contexto → determina nivel adulto, mood, escena
         ImageContextAnalysis contextAnalysis = contextBuilder.analyze(
-                character, recentMessages, userPrompt, request.adultLevel());
+                character, recentMessages, userPrompt, request.adultLevel(), totalMessages);
 
-        // 7. Build contextual prompt
+        // 8. Construir prompt contextual
         ImageGenerationInput input = promptBuilder.buildWithContext(character, request, contextAnalysis);
 
-        // 8. Deduct credit before calling provider (refunded on failure)
-        profile.setImageCredits(profile.getImageCredits() - 1);
+        // 9. Descontar créditos
+        profile.setImageCredits(profile.getImageCredits() - creditCost);
         profileRepository.save(profile);
-        log.info("Credit deducted — userId={} remainingCredits={}", user.getId(), profile.getImageCredits());
+        log.info("Credits deducted — userId={} cost={} remaining={}", user.getId(), creditCost, profile.getImageCredits());
 
-        // 9. Save PENDING record
+        // 10. Guardar registro PENDING
         ImageGeneration generation = imageGenerationRepository.save(ImageGeneration.builder()
-                .user(user)
-                .character(character)
-                .userPrompt(userPrompt)
+                .user(user).character(character).userPrompt(userPrompt)
                 .prompt(input.positivePrompt())
                 .provider(imageGenerationProvider.providerName())
-                .status(ImageStatus.PENDING)
-                .creditsCost(1)
+                .status(ImageStatus.PENDING).creditsCost(creditCost)
                 .build());
 
-        log.info("ImageGeneration PENDING — id={} userId={} characterSlug={} adultLevel={} provider={}",
+        log.info("ImageGeneration PENDING — id={} userId={} characterSlug={} level={} creditCost={}",
                 generation.getId(), user.getId(), request.characterSlug(),
-                contextAnalysis.adultLevel(), imageGenerationProvider.providerName());
+                contextAnalysis.adultLevel(), creditCost);
 
-        // 10. Call provider
+        // 11. Llamar al proveedor
         try {
             ImageGenerationResult result = imageGenerationProvider.generate(input);
 
@@ -135,26 +130,25 @@ public class ImageGenerationService {
             generation.setCompletedAt(LocalDateTime.now());
             imageGenerationRepository.save(generation);
 
-            log.info("Image generation COMPLETED — id={} userId={} characterSlug={} jobId={} url={}",
-                    generation.getId(), user.getId(), request.characterSlug(),
-                    result.providerJobId(), result.imageUrl());
+            log.info("Image generation COMPLETED — id={} userId={} url={}", generation.getId(), user.getId(), result.imageUrl());
 
             return new ImageGenerationResponse(
                     generation.getId(),
                     result.imageUrl(),
                     request.characterSlug(),
                     ImageStatus.COMPLETED.name(),
-                    profile.getImageCredits()
+                    profile.getImageCredits(),
+                    creditCost,
+                    highTrust,
+                    totalMessages
             );
 
         } catch (Exception e) {
-            log.error("Image generation FAILED — id={} userId={} characterSlug={} cause={}",
-                    generation.getId(), user.getId(), request.characterSlug(), e.getMessage());
+            log.error("Image generation FAILED — id={} userId={} cause={}", generation.getId(), user.getId(), e.getMessage());
 
-            // Refund credit
-            profile.setImageCredits(profile.getImageCredits() + 1);
+            // Reembolsar créditos
+            profile.setImageCredits(profile.getImageCredits() + creditCost);
             profileRepository.save(profile);
-            log.info("Credit refunded — userId={} restoredCredits={}", user.getId(), profile.getImageCredits());
 
             generation.setStatus(ImageStatus.FAILED);
             generation.setErrorMessage(e.getMessage());
@@ -164,12 +158,45 @@ public class ImageGenerationService {
         }
     }
 
+    // ── Confianza y coste ──────────────────────────────────────────────────────
+
+    /**
+     * Coste en créditos:
+     *   highTrust (mensajes >= umbral) → 1 crédito
+     *   lowTrust                       → 2 créditos
+     */
+    private int computeCreditCost(int totalMessages, Character character) {
+        int threshold = trustThreshold(character);
+        return totalMessages >= threshold ? 1 : 2;
+    }
+
+    /** Umbral de mensajes totales según dificultad del personaje. */
+    private int trustThreshold(Character character) {
+        String d = character.getDifficulty() != null ? character.getDifficulty().toLowerCase() : "";
+        if (d.contains("extrema"))                       return 50;
+        if (d.contains("muy alta"))                      return 30;
+        if (d.contains("alta") && d.contains("media"))  return 20;
+        if (d.contains("alta"))                          return 24;
+        if (d.contains("fácil") && d.contains("media")) return 8;
+        if (d.contains("media") && !d.contains("alta")) return 14;
+        if (d.contains("fácil"))                         return 5;
+        return 12;
+    }
+
+    // ── Helpers ────────────────────────────────────────────────────────────────
+
+    private int countTotalMessages(User user, Character character) {
+        return conversationRepository.findByUserAndCharacter(user, character)
+                .map(conv -> (int) messageRepository.countByConversation(conv))
+                .orElse(0);
+    }
+
     private List<Message> fetchRecentMessages(User user, Character character) {
         return conversationRepository.findByUserAndCharacter(user, character)
                 .map(conv -> {
                     List<Message> msgs = messageRepository.findByConversationOrderByCreatedAtDesc(
                             conv, PageRequest.of(0, CONTEXT_MESSAGES));
-                    Collections.reverse(msgs); // chronological order
+                    Collections.reverse(msgs);
                     return msgs;
                 })
                 .orElse(List.of());

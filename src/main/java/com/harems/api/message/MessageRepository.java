@@ -11,4 +11,6 @@ public interface MessageRepository extends JpaRepository<Message, Long> {
     List<Message> findByConversationOrderByCreatedAtAsc(Conversation conversation);
 
     List<Message> findByConversationOrderByCreatedAtDesc(Conversation conversation, Pageable pageable);
+
+    long countByConversation(Conversation conversation);
 }

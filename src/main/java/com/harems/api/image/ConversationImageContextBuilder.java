@@ -125,7 +125,8 @@ public class ConversationImageContextBuilder {
             Character character,
             List<Message> recentMessages,
             String userPrompt,
-            AdultLevel requestedLevel
+            AdultLevel requestedLevel,
+            int totalMessageCount
     ) {
         String lastAiMessage   = getLastMessageBySender(recentMessages, SenderType.AI);
         String lastUserMessage = getLastMessageBySender(recentMessages, SenderType.USER);
@@ -135,14 +136,30 @@ public class ConversationImageContextBuilder {
         String scene           = detectScene(character, lastAiMessage, lastUserMessage, userPrompt);
         String poseIntent      = derivePoseIntent(adultLevel, mood);
 
+        int threshold  = trustThreshold(character);
+        boolean highTrust = totalMessageCount >= threshold;
+
         String summary = String.format(
-                "char=%s level=%s mood=%s scene=%s lastUser='%s' lastAI='%s'",
+                "char=%s level=%s mood=%s scene=%s msgs=%d threshold=%d highTrust=%s",
                 character.getSlug(), adultLevel, mood, scene,
-                truncate(lastUserMessage, 60), truncate(lastAiMessage, 60));
+                totalMessageCount, threshold, highTrust);
 
         log.info("[ImageContext] {}", summary);
 
-        return new ImageContextAnalysis(adultLevel, mood, scene, poseIntent, summary);
+        return new ImageContextAnalysis(adultLevel, mood, scene, poseIntent, summary, highTrust, totalMessageCount);
+    }
+
+    /** Threshold de mensajes (totales, no solo los recientes) según dificultad del personaje. */
+    private int trustThreshold(Character character) {
+        String d = character.getDifficulty() != null ? character.getDifficulty().toLowerCase() : "";
+        if (d.contains("extrema"))                            return 50;
+        if (d.contains("muy alta"))                           return 30;
+        if (d.contains("alta") && d.contains("media"))       return 20;
+        if (d.contains("alta"))                               return 24;
+        if (d.contains("fácil") && d.contains("media"))      return 8;
+        if (d.contains("media") && !d.contains("alta"))      return 14;
+        if (d.contains("fácil"))                              return 5;
+        return 12;
     }
 
     // ── Detection helpers ─────────────────────────────────────────────────────
