@@ -38,11 +38,9 @@ app:
   limits:
     free-messages-per-character: 20
 
-# AI integration
+# AI integration (chat)
 ai:
   provider: ${AI_PROVIDER:SIMULATED}
-  openai:
-    api-key: ${OPENAI_API_KEY:}
   openrouter:
     api-key: ${OPENROUTER_API_KEY:}
     model: ${OPENROUTER_MODEL:openai/gpt-4o-mini}
@@ -50,27 +48,34 @@ ai:
     referer: ${OPENROUTER_REFERER:https://haremsweb.vercel.app}
     title: ${OPENROUTER_TITLE:HAREMS}
     timeout-ms: ${OPENROUTER_TIMEOUT_MS:30000}
-    history-size: ${OPENROUTER_HISTORY_SIZE:10}
-    temperature: ${OPENROUTER_TEMPERATURE:0.7}
-    max-tokens: ${OPENROUTER_MAX_TOKENS:150}
-    top-p: ${OPENROUTER_TOP_P:0.9}
-    frequency-penalty: ${OPENROUTER_FREQUENCY_PENALTY:0.2}
-    presence-penalty: ${OPENROUTER_PRESENCE_PENALTY:0.1}
+    history-size: ${OPENROUTER_HISTORY_SIZE:12}
+    temperature: ${OPENROUTER_TEMPERATURE:0.85}
+    max-tokens: ${OPENROUTER_MAX_TOKENS:280}
+    top-p: ${OPENROUTER_TOP_P:0.92}
+    frequency-penalty: ${OPENROUTER_FREQUENCY_PENALTY:0.45}
+    presence-penalty: ${OPENROUTER_PRESENCE_PENALTY:0.25}
 
 # Image generation
 image:
+  # Options: MOCK | FAL | RUNPOD
   provider: ${IMAGE_PROVIDER:MOCK}
   default-width: ${IMAGE_DEFAULT_WIDTH:768}
   default-height: ${IMAGE_DEFAULT_HEIGHT:1024}
-  default-steps: ${IMAGE_DEFAULT_STEPS:25}
-  default-cfg: ${IMAGE_DEFAULT_CFG:7.0}
-  generation-timeout-seconds: ${IMAGE_GENERATION_TIMEOUT_SECONDS:120}
+  generation-timeout-seconds: ${IMAGE_GENERATION_TIMEOUT_SECONDS:60}
+
+  fal:
+    # Primary: FAL_KEY. Fallback: FAL_API_KEY
+    api-key: ${FAL_KEY:${FAL_API_KEY:}}
+    # fal-ai/flux/schnell (fast/testing) or fal-ai/flux-pro/v1.1 (quality)
+    model: ${FAL_IMAGE_MODEL:fal-ai/flux/schnell}
+    base-url: ${FAL_BASE_URL:https://fal.run}
+
   runpod:
     api-key: ${RUNPOD_API_KEY:}
     endpoint-id: ${RUNPOD_ENDPOINT_ID:}
     base-url: ${RUNPOD_BASE_URL:https://api.runpod.ai/v2}
 
-# Payments (future use - not connected yet)
+# Payments (future use)
 payment:
   provider: ${PAYMENT_PROVIDER:}
   secret-key: ${PAYMENT_SECRET_KEY:}

@@ -6,8 +6,9 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 /**
- * Builds the final positive and negative prompts for image generation.
- * The user's optional hint is appended only after passing moderation.
+ * Builds image generation prompts optimised for FLUX-family models (fal.ai).
+ * The character's imagePromptBase provides the visual foundation;
+ * style, mood and the user's optional hint enrich it.
  */
 @Service
 public class ImagePromptBuilder {
@@ -18,65 +19,60 @@ public class ImagePromptBuilder {
     @Value("${image.default-height:1024}")
     private int defaultHeight;
 
-    @Value("${image.default-steps:25}")
-    private int defaultSteps;
-
-    @Value("${image.default-cfg:7.0}")
-    private float defaultCfg;
-
-    private static final String NEGATIVE_PROMPT =
-            "(minor, child, underage, teenager, childlike, loli, shota, little girl, young girl), " +
-            "(real person, celebrity, famous, deepfake, face swap, real human photo, photograph of real woman), " +
-            "(violence, non-consent, rape, unconscious, drugged, coercion, forced, snuff), " +
-            "(ugly, blurry, deformed, bad anatomy, extra limbs, missing limbs, text, watermark, " +
-            "signature, low quality, worst quality, pixelated, sketchy, disfigured, mutation)";
-
     public ImageGenerationInput build(Character character, ImageGenerationRequest request) {
-        String style = resolveStyle(request.style());
-        String mood = resolveMood(request.mood());
+        String base     = character.getImagePromptBase();
+        String style    = resolveStyle(request.style());
+        String mood     = resolveMood(request.mood());
         String userHint = buildUserHint(request.userPrompt());
 
+        // FLUX responds best to descriptive, natural-language prompts.
+        // Structure: [character visual base], [style], [mood/scene], [user hint], quality tags
         String positivePrompt = String.format(
-                "fictional adult woman character, %s, %s, %s atmosphere%s, " +
-                "cinematic vertical portrait, professional studio lighting, " +
-                "elegant, beautiful face, realistic proportions, 8k high quality, detailed",
-                style,
-                character.getImagePromptBase(),
-                mood,
-                userHint
+                "%s, %s, %s atmosphere%s, " +
+                "fictional adult character, cinematic portrait, " +
+                "professional photography lighting, beautiful, high quality, detailed",
+                base, style, mood, userHint
         );
+
+        // Negative prompt kept minimal — FLUX handles content guidance internally.
+        // Kept for backward compatibility with SDXL-based providers.
+        String negativePrompt =
+                "minor, child, underage, real person, celebrity, violence, " +
+                "ugly, blurry, deformed, bad anatomy, watermark, low quality";
 
         int[] dimensions = resolveDimensions(request.aspectRatio());
 
         return new ImageGenerationInput(
                 positivePrompt,
-                NEGATIVE_PROMPT,
+                negativePrompt,
                 dimensions[0],
                 dimensions[1],
-                defaultSteps,
-                defaultCfg,
+                4,    // steps (fixed for flux/schnell; ignored by fal for flux-pro)
+                1.0f, // cfg (not used by FLUX)
                 character
         );
     }
 
     private String resolveStyle(String style) {
-        if (style == null || style.isBlank()) return "premium realistic anime style, semi-realistic illustration";
+        if (style == null || style.isBlank()) {
+            return "semi-realistic anime art style";
+        }
         return switch (style.toLowerCase()) {
-            case "anime" -> "anime style illustration, cel shaded";
-            case "realistic" -> "photorealistic, ultra detailed skin, 8k";
-            case "premium-realistic-anime" -> "premium realistic anime style, semi-realistic illustration";
-            default -> "premium realistic anime style, semi-realistic illustration";
+            case "anime"                  -> "anime illustration style";
+            case "realistic"              -> "photorealistic photography style";
+            case "premium-realistic-anime" -> "semi-realistic anime art style";
+            default                       -> "semi-realistic anime art style";
         };
     }
 
     private String resolveMood(String mood) {
-        if (mood == null || mood.isBlank()) return "neutral elegant";
+        if (mood == null || mood.isBlank()) return "elegant and confident";
         return switch (mood.toLowerCase()) {
-            case "sensual" -> "sensual and confident";
-            case "playful" -> "playful and joyful";
+            case "sensual"    -> "sensual and confident";
+            case "playful"    -> "playful and joyful";
             case "mysterious" -> "mysterious and intriguing";
-            case "romantic" -> "romantic and warm";
-            default -> "neutral elegant";
+            case "romantic"   -> "romantic and warm";
+            default           -> "elegant and confident";
         };
     }
 
@@ -93,7 +89,7 @@ public class ImagePromptBuilder {
 
     private int[] resolveDimensions(String aspectRatio) {
         if ("landscape".equalsIgnoreCase(aspectRatio)) return new int[]{defaultHeight, defaultWidth};
-        if ("square".equalsIgnoreCase(aspectRatio)) return new int[]{768, 768};
+        if ("square".equalsIgnoreCase(aspectRatio))    return new int[]{768, 768};
         return new int[]{defaultWidth, defaultHeight}; // portrait default
     }
 }
