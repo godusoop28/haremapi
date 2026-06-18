@@ -9,6 +9,7 @@ public record ImageGenerationInput(
         int height,
         int steps,
         float cfg,
-        Character character
+        Character character,
+        AdultLevel adultLevel
 ) {
 }

@@ -1,6 +1,9 @@
 package com.harems.api.common.exception;
 
 import com.harems.api.common.dto.ErrorResponse;
+import com.harems.api.common.exception.ImageGenerationBlockedException;
+import java.util.Map;
+import java.util.LinkedHashMap;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.AccessDeniedException;
@@ -37,6 +40,14 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(PromptBlockedException.class)
     public ResponseEntity<ErrorResponse> handlePromptBlocked(PromptBlockedException ex) {
         return ResponseEntity.status(HttpStatus.UNPROCESSABLE_ENTITY).body(new ErrorResponse(ex.getMessage()));
+    }
+
+    @ExceptionHandler(ImageGenerationBlockedException.class)
+    public ResponseEntity<Map<String, String>> handleImageBlocked(ImageGenerationBlockedException ex) {
+        Map<String, String> body = new LinkedHashMap<>();
+        body.put("message", ex.getMessage());
+        body.put("code", "IMAGE_PROVIDER_BLOCKED");
+        return ResponseEntity.status(HttpStatus.UNPROCESSABLE_ENTITY).body(body);
     }
 
     @ExceptionHandler(BadRequestException.class)

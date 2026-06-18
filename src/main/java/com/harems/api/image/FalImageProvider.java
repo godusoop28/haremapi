@@ -1,5 +1,6 @@
 package com.harems.api.image;
 
+import com.harems.api.common.exception.ImageGenerationBlockedException;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
@@ -12,18 +13,26 @@ import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.HttpServerErrorException;
 import org.springframework.web.client.RestClient;
 
+import java.net.HttpURLConnection;
+import java.net.URL;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
 /**
- * fal.ai image provider con retry automático cuando el contenido es bloqueado.
+ * fal.ai image provider con selección de modelo por AdultLevel.
  *
- * FLUJO:
- *   1. Llama a fal.ai con el prompt completo.
- *   2. Si has_nsfw_concepts=true (imagen negra por bloqueo) → retry con prompt suavizado.
- *   3. Si el retry también falla → lanza excepción.
+ * SELECCIÓN DE MODELO:
+ *   SAFE     → FAL_IMAGE_MODEL_SAFE     (default: fal-ai/flux/schnell)
+ *   SENSUAL  → FAL_IMAGE_MODEL_SENSUAL  (default: fal-ai/flux-pro/v1.1)
+ *   NUDE     → FAL_IMAGE_MODEL_NUDE     (default: fal-ai/flux/dev)
+ *   EXPLICIT → FAL_IMAGE_MODEL_EXPLICIT (default: fal-ai/flux/dev)
  *
- * MODELO RECOMENDADO: fal-ai/flux-pro/v1.1 (FAL_IMAGE_MODEL en Render)
+ * Si FAL_VALIDATE_OUTPUT=true: verifica que la imagen no sea negra antes de devolver URL.
+ * Si contenido bloqueado y FAL_REFUND_ON_BLOCKED=true: lanza ImageGenerationBlockedException
+ *   para que ImageGenerationService reembolse créditos.
+ *
+ * NOTA: fal-ai/fast-sdxl tiene filtro NSFW hardcodeado — producirá imagen negra para
+ *       contenido adulto. Usar fal-ai/flux/dev o fal-ai/flux-pro/v1.1 para NUDE/EXPLICIT.
  */
 @Slf4j
 @Component
@@ -31,22 +40,51 @@ import java.util.Map;
 public class FalImageProvider implements ImageGenerationProvider {
 
     private final RestClient restClient;
-    private final String model;
+    private final String defaultModel;
     private final String baseUrl;
+    private final String safetyTolerance;
+    private final int maxRetries;
+    private final boolean refundOnBlocked;
+    private final boolean validateOutput;
     private final ObjectMapper objectMapper;
+
+    // Modelos por nivel
+    private final String modelSafe;
+    private final String modelSensual;
+    private final String modelNude;
+    private final String modelExplicit;
+    private final String modelNudeFallback;
 
     public FalImageProvider(
             @Value("${image.fal.api-key:}") String apiKey,
-            @Value("${image.fal.model:fal-ai/flux/dev}") String model,
+            @Value("${image.fal.model:fal-ai/flux-pro/v1.1}") String defaultModel,
             @Value("${image.fal.base-url:https://fal.run}") String baseUrl,
+            @Value("${image.fal.model-safe:fal-ai/flux/schnell}") String modelSafe,
+            @Value("${image.fal.model-sensual:fal-ai/flux-pro/v1.1}") String modelSensual,
+            @Value("${image.fal.model-nude:fal-ai/flux/dev}") String modelNude,
+            @Value("${image.fal.model-explicit:fal-ai/flux/dev}") String modelExplicit,
+            @Value("${image.fal.model-nude-fallback:fal-ai/flux/dev}") String modelNudeFallback,
+            @Value("${image.fal.safety-tolerance:6}") String safetyTolerance,
+            @Value("${image.fal.max-retries:2}") int maxRetries,
+            @Value("${image.fal.refund-on-blocked:true}") boolean refundOnBlocked,
+            @Value("${image.fal.validate-output:true}") boolean validateOutput,
             @Value("${image.generation-timeout-seconds:60}") int timeoutSeconds,
             ObjectMapper objectMapper
     ) {
         if (apiKey == null || apiKey.isBlank()) {
             log.warn("[FAL] FAL_KEY no configurada.");
         }
-        this.model = model;
+        this.defaultModel = defaultModel;
         this.baseUrl = baseUrl;
+        this.modelSafe = modelSafe;
+        this.modelSensual = modelSensual;
+        this.modelNude = modelNude;
+        this.modelExplicit = modelExplicit;
+        this.modelNudeFallback = modelNudeFallback;
+        this.safetyTolerance = safetyTolerance;
+        this.maxRetries = Math.max(1, maxRetries);
+        this.refundOnBlocked = refundOnBlocked;
+        this.validateOutput = validateOutput;
         this.objectMapper = objectMapper;
 
         SimpleClientHttpRequestFactory factory = new SimpleClientHttpRequestFactory();
@@ -63,50 +101,85 @@ public class FalImageProvider implements ImageGenerationProvider {
     @Override
     public ImageGenerationResult generate(ImageGenerationInput input) {
         String characterSlug = input.character().getSlug();
-        log.info("[FAL] Generating — model={} character={} size={}x{}",
-                model, characterSlug, input.width(), input.height());
+        AdultLevel level = input.adultLevel() != null ? input.adultLevel() : AdultLevel.SENSUAL;
 
-        // ── Intento 1 ────────────────────────────────────────────────────────
-        Map<String, Object> body = buildRequestBody(input);
+        String selectedModel = resolveModel(level);
+        log.info("[FAL] Generating — character={} level={} model={} size={}x{}",
+                characterSlug, level, selectedModel, input.width(), input.height());
+
+        Map<String, Object> body = buildRequestBody(input, selectedModel);
         logBody(body);
 
-        JsonNode response = callFal(body, characterSlug);
-        logResponse(response);
+        JsonNode response = null;
+        boolean blocked = false;
 
-        // El clasificador NSFW de fal.ai es PROBABILÍSTICO — el mismo prompt
-        // puede pasar o fallar en distintas llamadas. Si falla (imagen negra),
-        // reintentamos con el mismo prompt. La segunda llamada tiene ~50% de
-        // éxito sin cambiar nada, porque la generación usa seed aleatoria.
-        if (isContentBlocked(response)) {
-            log.warn("[FAL] has_nsfw_concepts=true — clasificador aleatorio, reintentando misma solicitud (character={})", characterSlug);
-
-            // ── Intento 2: mismo prompt, seed diferente (aleatorio en fal.ai) ─
-            response = callFal(body, characterSlug);
+        for (int attempt = 1; attempt <= maxRetries; attempt++) {
+            response = callFal(body, selectedModel, characterSlug);
             logResponse(response);
 
-            if (isContentBlocked(response)) {
-                log.warn("[FAL] Segundo intento también bloqueado (character={}) — el clasificador es muy agresivo en este ciclo", characterSlug);
-                // ── Intento 3: prompt simplificado (última oportunidad) ────────
-                Map<String, Object> lightBody = buildLightBody(input);
-                logBody(lightBody);
-                response = callFal(lightBody, characterSlug);
-                logResponse(response);
+            blocked = isContentBlocked(response);
+            if (!blocked) {
+                log.info("[FAL] Attempt {} succeeded — character={} model={}", attempt, characterSlug, selectedModel);
+                break;
+            }
 
-                if (isContentBlocked(response)) {
-                    log.error("[FAL] 3 intentos bloqueados para character={}. fal.ai está siendo muy restrictivo en este momento.", characterSlug);
-                    throw new RuntimeException(
-                            "El servicio de imágenes está siendo restrictivo ahora. Espera un momento e inténtalo de nuevo.");
+            log.warn("[FAL] Attempt {}/{} blocked (has_nsfw_concepts=true) — character={} model={}",
+                    attempt, maxRetries, characterSlug, selectedModel);
+
+            if (attempt == maxRetries) {
+                // Si el modelo principal fue NUDE/EXPLICIT, intentar fallback si es diferente
+                boolean isNudeLevel = level == AdultLevel.NUDE || level == AdultLevel.EXPLICIT;
+                if (isNudeLevel && !modelNudeFallback.equals(selectedModel)) {
+                    log.info("[FAL] Trying nude fallback model={} for character={}", modelNudeFallback, characterSlug);
+                    Map<String, Object> fallbackBody = buildRequestBody(input, modelNudeFallback);
+                    logBody(fallbackBody);
+                    response = callFal(fallbackBody, modelNudeFallback, characterSlug);
+                    logResponse(response);
+                    blocked = isContentBlocked(response);
+                    if (!blocked) {
+                        log.info("[FAL] Nude fallback model={} succeeded for character={}", modelNudeFallback, characterSlug);
+                        selectedModel = modelNudeFallback;
+                    }
                 }
             }
-            log.info("[FAL] Retry exitoso para character={}", characterSlug);
         }
 
-        return parseResponse(response, characterSlug);
+        // Validar imagen si está habilitado
+        if (validateOutput && response != null) {
+            String imageUrl = extractUrl(response);
+            if (imageUrl != null && isImageTooSmall(imageUrl)) {
+                log.warn("[FAL] Output validation: image appears too small (likely black placeholder) — character={} url={}",
+                        characterSlug, imageUrl);
+                blocked = true;
+            }
+        }
+
+        if (blocked) {
+            log.error("[FAL] Content blocked after all retries — character={} model={} refundOnBlocked={}",
+                    characterSlug, selectedModel, refundOnBlocked);
+            if (refundOnBlocked) {
+                throw new ImageGenerationBlockedException(
+                        "El modelo no pudo generar esa imagen. Intenta de nuevo o cambia el nivel.");
+            }
+        }
+
+        return parseResponse(response, characterSlug, selectedModel);
     }
 
-    // ── Llamada HTTP a fal.ai ──────────────────────────────────────────────────
+    // ── Model selection ───────────────────────────────────────────────────────
 
-    private JsonNode callFal(Map<String, Object> body, String characterSlug) {
+    private String resolveModel(AdultLevel level) {
+        return switch (level) {
+            case SAFE     -> modelSafe;
+            case SENSUAL  -> modelSensual;
+            case NUDE     -> modelNude;
+            case EXPLICIT -> modelExplicit;
+        };
+    }
+
+    // ── HTTP ──────────────────────────────────────────────────────────────────
+
+    private JsonNode callFal(Map<String, Object> body, String model, String characterSlug) {
         String url = baseUrl + "/" + model;
         try {
             return restClient.post()
@@ -116,72 +189,29 @@ public class FalImageProvider implements ImageGenerationProvider {
                     .retrieve()
                     .body(JsonNode.class);
         } catch (HttpClientErrorException e) {
-            handleClientError(e, characterSlug);
-            return null; // unreachable
+            handleClientError(e, characterSlug, model);
+            return null;
         } catch (HttpServerErrorException e) {
-            log.error("[FAL] Server error {} — body={}", e.getStatusCode(), e.getResponseBodyAsString());
+            log.error("[FAL] Server error {} — model={} character={}", e.getStatusCode(), model, characterSlug);
             throw new RuntimeException("El servicio de imágenes no está disponible. Inténtalo más tarde.");
         } catch (Exception e) {
-            log.error("[FAL] Error inesperado — character={} cause={}", characterSlug, e.getMessage());
+            log.error("[FAL] Error inesperado — model={} character={} cause={}", model, characterSlug, e.getMessage());
             throw new RuntimeException("Error al generar la imagen. Inténtalo de nuevo.");
         }
     }
 
-    // ── Deteccion de bloqueo de contenido ──────────────────────────────────────
+    // ── Request body ──────────────────────────────────────────────────────────
 
-    private boolean isContentBlocked(JsonNode response) {
-        if (response == null) return false;
-        JsonNode nsfw = response.path("has_nsfw_concepts");
-        if (nsfw.isArray() && !nsfw.isEmpty()) {
-            return nsfw.get(0).asBoolean(false);
-        }
-        return false;
-    }
-
-    /**
-     * Body simplificado para el 3er intento: elimina los descriptores físicos
-     * más explícitos del imagePromptBase para dar otra oportunidad al clasificador.
-     * El modelo sigue generando adult content por el contexto "boudoir/nude".
-     */
-    private Map<String, Object> buildLightBody(ImageGenerationInput input) {
-        // Eliminamos descriptores físicos que pueden disparar el clasificador
-        String lightPrompt = input.positivePrompt()
-                .replace("disproportionately large full breasts", "full figure")
-                .replace("disproportionately large breasts", "full figure")
-                .replace("very large voluptuous breasts", "full figure")
-                .replace("very large full breasts", "full figure")
-                .replace("large mature full breasts", "full figure")
-                .replace("large full breasts", "full figure")
-                .replace("round large buttocks", "curvy figure")
-                .replace("round full buttocks", "curvy figure")
-                .replace("very wide full hips", "wide hips")
-                .replace("very wide hips", "wide hips")
-                .replace("thick thighs", "")
-                .replace("nipples exposed and visible", "")
-                .replace("bare hips and buttocks visible", "")
-                .replace("all intimate body parts exposed", "")
-                .replace("bare hips and buttocks,", "")
-                .replace("  ", " ");
-
-        log.info("[FAL] Light prompt (3rd attempt): '{}'", truncate(lightPrompt, 150));
-
-        Map<String, Object> body = buildRequestBody(
-                new ImageGenerationInput(lightPrompt, input.negativePrompt(),
-                        input.width(), input.height(), input.steps(), input.cfg(), input.character()));
-        return body;
-    }
-
-    // ── Construccion del body ──────────────────────────────────────────────────
-
-    private Map<String, Object> buildRequestBody(ImageGenerationInput input) {
+    private Map<String, Object> buildRequestBody(ImageGenerationInput input, String model) {
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("prompt", input.positivePrompt());
         body.put("num_images", 1);
-        body.put("enable_safety_checker", false);
 
         boolean isFlux = model.toLowerCase().contains("flux");
+        boolean isSdxl = model.toLowerCase().contains("sdxl");
 
         if (isFlux) {
+            body.put("enable_safety_checker", false);
             LinkedHashMap<String, Integer> size = new LinkedHashMap<>();
             size.put("width", input.width());
             size.put("height", input.height());
@@ -194,12 +224,14 @@ public class FalImageProvider implements ImageGenerationProvider {
             }
 
             if (model.contains("flux-pro") || model.contains("flux/pro")) {
-                body.put("safety_tolerance", "6");
+                body.put("safety_tolerance", safetyTolerance);
                 body.remove("enable_safety_checker");
             }
         } else {
+            // SDXL y otros: width/height directamente
             body.put("width", input.width());
             body.put("height", input.height());
+            body.put("enable_safety_checker", false);
             if (!input.negativePrompt().isBlank()) {
                 body.put("negative_prompt", input.negativePrompt());
             }
@@ -208,16 +240,48 @@ public class FalImageProvider implements ImageGenerationProvider {
         return body;
     }
 
-    // ── Parse de respuesta ────────────────────────────────────────────────────
+    // ── Validation ────────────────────────────────────────────────────────────
 
-    private ImageGenerationResult parseResponse(JsonNode response, String characterSlug) {
-        if (response == null) {
-            throw new RuntimeException("fal.ai no devolvió respuesta.");
+    private boolean isContentBlocked(JsonNode response) {
+        if (response == null) return false;
+        JsonNode nsfw = response.path("has_nsfw_concepts");
+        if (nsfw.isArray() && !nsfw.isEmpty()) {
+            return nsfw.get(0).asBoolean(false);
         }
+        return false;
+    }
+
+    /**
+     * Validates image is not a tiny black placeholder by checking its size via HEAD request.
+     * Real images at 1024x1536 are typically >50KB. Black placeholders are <10KB.
+     */
+    private boolean isImageTooSmall(String imageUrl) {
+        try {
+            HttpURLConnection conn = (HttpURLConnection) new URL(imageUrl).openConnection();
+            conn.setRequestMethod("HEAD");
+            conn.setConnectTimeout(5_000);
+            conn.setReadTimeout(5_000);
+            conn.connect();
+            int contentLength = conn.getContentLength();
+            conn.disconnect();
+            if (contentLength > 0 && contentLength < 15_000) {
+                log.warn("[FAL] Image size={}B is suspiciously small (likely black placeholder) url={}", contentLength, imageUrl);
+                return true;
+            }
+        } catch (Exception e) {
+            log.debug("[FAL] Could not HEAD-check image URL: {}", e.getMessage());
+        }
+        return false;
+    }
+
+    // ── Parse ─────────────────────────────────────────────────────────────────
+
+    private ImageGenerationResult parseResponse(JsonNode response, String characterSlug, String model) {
+        if (response == null) throw new RuntimeException("fal.ai no devolvió respuesta.");
 
         JsonNode images = response.path("images");
         if (!images.isArray() || images.isEmpty()) {
-            log.error("[FAL] Sin imágenes en respuesta para character={}: {}", characterSlug, response);
+            log.error("[FAL] Sin imágenes en respuesta — character={} model={}", characterSlug, model);
             throw new RuntimeException("fal.ai no generó ninguna imagen.");
         }
 
@@ -227,30 +291,38 @@ public class FalImageProvider implements ImageGenerationProvider {
         }
 
         long seed = response.path("seed").asLong(0L);
-        log.info("[FAL] Imagen generada OK — character={} url={} seed={}", characterSlug, imageUrl, seed);
+        log.info("[FAL] Image generated OK — character={} model={} url={} seed={}",
+                characterSlug, model, imageUrl, seed);
         return new ImageGenerationResult(imageUrl, "fal-" + seed);
+    }
+
+    private String extractUrl(JsonNode response) {
+        if (response == null) return null;
+        JsonNode images = response.path("images");
+        if (!images.isArray() || images.isEmpty()) return null;
+        return images.get(0).path("url").asText(null);
     }
 
     // ── Error handling ────────────────────────────────────────────────────────
 
-    private void handleClientError(HttpClientErrorException e, String characterSlug) {
+    private void handleClientError(HttpClientErrorException e, String characterSlug, String model) {
         int status = e.getStatusCode().value();
         String body = e.getResponseBodyAsString();
         switch (status) {
             case 401 -> {
-                log.error("[FAL] 401 Unauthorized — FAL_KEY inválida. character={}", characterSlug);
+                log.error("[FAL] 401 Unauthorized — FAL_KEY inválida. character={} model={}", characterSlug, model);
                 throw new RuntimeException("Servicio de imágenes no autorizado.");
             }
             case 422 -> {
-                log.error("[FAL] 422 Payload inválido — character={} body={}", characterSlug, body);
+                log.error("[FAL] 422 Payload inválido — character={} model={} body={}", characterSlug, model, body);
                 throw new RuntimeException("Solicitud inválida al servicio de imágenes.");
             }
             case 429 -> {
-                log.warn("[FAL] 429 Rate limit — character={}", characterSlug);
+                log.warn("[FAL] 429 Rate limit — character={} model={}", characterSlug, model);
                 throw new RuntimeException("Límite de generación alcanzado. Intenta en unos minutos.");
             }
             default -> {
-                log.error("[FAL] Error {} — character={} body={}", status, characterSlug, body);
+                log.error("[FAL] Error {} — character={} model={} body={}", status, characterSlug, model, body);
                 throw new RuntimeException("Error al generar la imagen (" + status + ").");
             }
         }
@@ -260,26 +332,16 @@ public class FalImageProvider implements ImageGenerationProvider {
 
     private void logBody(Map<String, Object> body) {
         try {
-            String json = objectMapper.writeValueAsString(body);
-            log.info("[FAL] Request → {}", json);
+            log.info("[FAL] Request → {}", objectMapper.writeValueAsString(body));
         } catch (Exception ignored) {}
     }
 
     private void logResponse(JsonNode response) {
         try {
-            if (response != null) {
-                log.info("[FAL] Response → {}", objectMapper.writeValueAsString(response));
-            }
+            if (response != null) log.info("[FAL] Response → {}", objectMapper.writeValueAsString(response));
         } catch (Exception ignored) {}
     }
 
-    private String truncate(String s, int max) {
-        if (s == null) return "";
-        return s.length() > max ? s.substring(0, max) + "..." : s;
-    }
-
     @Override
-    public String providerName() {
-        return "FAL";
-    }
+    public String providerName() { return "FAL"; }
 }

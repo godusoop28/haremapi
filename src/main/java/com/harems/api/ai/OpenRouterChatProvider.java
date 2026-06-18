@@ -71,6 +71,13 @@ public class OpenRouterChatProvider implements AiChatProvider {
 
     @Override
     public String generateReply(Character character, List<Message> history, String userMessage) {
+        return generateReply(character, history, userMessage, this.model);
+    }
+
+    /**
+     * Overload that accepts a model override — used by AiChatService for fallback chain.
+     */
+    public String generateReply(Character character, List<Message> history, String userMessage, String modelOverride) {
         if (apiKey == null || apiKey.isBlank()) {
             throw new IllegalStateException("OPENROUTER_API_KEY no está configurada.");
         }
@@ -81,16 +88,14 @@ public class OpenRouterChatProvider implements AiChatProvider {
         for (Message m : history) {
             String role = m.getSender() == SenderType.USER ? "user" : "assistant";
             String content = stripSpeakerPrefix(m.getContent(), character.getName());
-            if (content.isBlank()) {
-                continue;
-            }
+            if (content.isBlank()) continue;
             messages.add(Map.of("role", role, "content", content));
         }
 
         messages.add(Map.of("role", "user", "content", userMessage));
 
         Map<String, Object> body = new LinkedHashMap<>();
-        body.put("model", model);
+        body.put("model", modelOverride);
         body.put("messages", messages);
         body.put("temperature", temperature);
         body.put("max_tokens", maxTokens);
@@ -98,7 +103,7 @@ public class OpenRouterChatProvider implements AiChatProvider {
         body.put("frequency_penalty", frequencyPenalty);
         body.put("presence_penalty", presencePenalty);
 
-        log.info("Calling OpenRouter (model={}) for character={}", model, character.getSlug());
+        log.info("Calling OpenRouter model={} for character={}", modelOverride, character.getSlug());
 
         JsonNode response = restClient.post()
                 .uri(baseUrl)
