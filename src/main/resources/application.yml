@@ -38,6 +38,14 @@ app:
   limits:
     free-messages-per-character: 20
 
+# ── Modo adulto del chat ───────────────────────────────────────────────────────
+chat:
+  adult-mode-enabled: ${CHAT_ADULT_MODE_ENABLED:true}
+  allow-vulgar-language: ${CHAT_ALLOW_VULGAR_LANGUAGE:true}
+  explicit-roleplay-enabled: ${CHAT_EXPLICIT_ROLEPLAY_ENABLED:true}
+  # 0 = sin restriccion de conexion. >0 = mensajes minimos antes de escalar.
+  explicit-min-connection: ${CHAT_EXPLICIT_MIN_CONNECTION:0}
+
 # ── AI / Chat ──────────────────────────────────────────────────────────────────
 ai:
   provider: ${AI_PROVIDER:SIMULATED}
@@ -50,11 +58,11 @@ ai:
     title: ${OPENROUTER_TITLE:HAREMS}
     timeout-ms: ${OPENROUTER_TIMEOUT_MS:30000}
     history-size: ${OPENROUTER_HISTORY_SIZE:12}
-    temperature: ${OPENROUTER_TEMPERATURE:0.85}
-    max-tokens: ${OPENROUTER_MAX_TOKENS:280}
+    temperature: ${OPENROUTER_TEMPERATURE:0.95}
+    max-tokens: ${OPENROUTER_MAX_TOKENS:320}
     top-p: ${OPENROUTER_TOP_P:0.92}
-    frequency-penalty: ${OPENROUTER_FREQUENCY_PENALTY:0.45}
-    presence-penalty: ${OPENROUTER_PRESENCE_PENALTY:0.25}
+    frequency-penalty: ${OPENROUTER_FREQUENCY_PENALTY:0.35}
+    presence-penalty: ${OPENROUTER_PRESENCE_PENALTY:0.2}
 
 # ── Image Generation ───────────────────────────────────────────────────────────
 image:

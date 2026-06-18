@@ -11,16 +11,17 @@ import java.util.Arrays;
 import java.util.List;
 
 /**
- * Orchestrates AI chat with a primary model, a configurable fallback chain,
- * and a varied local fallback as last resort.
+ * Orquesta el chat con OpenRouter mediante una cadena de fallback:
  *
- * Flow:
- *   1. Try OPENROUTER_MODEL (primary).
- *   2. On any error (404, 429, 5xx, timeout, invalid response) → try each fallback model
- *      from OPENROUTER_FALLBACK_MODELS in order.
- *   3. If all remote models fail → use varied local fallback (never repeats same phrase).
+ *   1. Intenta OPENROUTER_MODEL (modelo principal).
+ *      — Si detecta rechazo inapropiado ante contenido adulto, hace retry interno con prompt reforzado.
+ *      — Si el retry también falla, lanza excepción ("BAD_ADULT_REFUSAL") para pasar al siguiente modelo.
+ *   2. Intenta cada modelo de OPENROUTER_FALLBACK_MODELS en orden.
+ *   3. Si todos fallan → fallback local variado en personaje.
+ *      — Si el mensaje era adulto permitido → fallback local adulto en personaje.
+ *      — Si era mensaje normal → fallback local neutro.
  *
- * Never exposes API keys in logs.
+ * Nunca expone API keys en logs.
  */
 @Slf4j
 @Service
@@ -31,70 +32,90 @@ public class AiChatService {
     private final List<String> fallbackModels;
     private final OpenRouterChatProvider openRouterChatProvider;
     private final SimulatedAiService simulatedAiService;
+    private final ChatModerationService moderation;
 
     public AiChatService(
             @Value("${ai.provider}") String provider,
             @Value("${ai.openrouter.model}") String primaryModel,
             @Value("${ai.openrouter.fallback-models:}") String fallbackModelsRaw,
             OpenRouterChatProvider openRouterChatProvider,
-            SimulatedAiService simulatedAiService
+            SimulatedAiService simulatedAiService,
+            ChatModerationService moderation
     ) {
         this.provider = provider;
         this.primaryModel = primaryModel;
         this.openRouterChatProvider = openRouterChatProvider;
         this.simulatedAiService = simulatedAiService;
+        this.moderation = moderation;
 
         this.fallbackModels = Arrays.stream(fallbackModelsRaw.split(","))
                 .map(String::trim)
                 .filter(s -> !s.isBlank())
                 .toList();
 
-        if (!fallbackModels.isEmpty()) {
-            log.info("OpenRouter fallback chain: {} → {}", primaryModel, fallbackModels);
-        }
+        log.info("AiChatService init: provider={} primary={} fallbacks={} adultMode={} allowVulgar={}",
+                provider, primaryModel, fallbackModels,
+                moderation.isAdultModeEnabled(), moderation.isVulgarAllowed());
     }
 
     /**
-     * Returns a reply. Never throws — uses local fallback as last resort.
+     * Genera respuesta. Nunca lanza excepción — usa fallback local como último recurso.
      */
     public String generateReply(Character character, List<Message> history, String userMessage) {
         if (!"OPENROUTER".equalsIgnoreCase(provider)) {
-            log.debug("AI_PROVIDER={} — SimulatedAi for character={}", provider, character.getSlug());
+            log.debug("AI_PROVIDER={} — usando SimulatedAi para character={}", provider, character.getSlug());
             return simulatedAiService.generateFallback(character);
         }
 
-        // ── 1. Try primary model ───────────────────────────────────────────────
+        boolean isAdultRequest = moderation.isAdultContent(userMessage);
+        boolean isIllegal = moderation.isIllegalOrUnsafe(userMessage);
+
+        log.info("generateReply — character={} adultMode={} isAdult={} isIllegal={}",
+                character.getSlug(), moderation.isAdultModeEnabled(), isAdultRequest, isIllegal);
+
+        // Bloquear mensajes ilegales antes de llamar a la IA
+        if (isIllegal) {
+            log.warn("Message blocked by moderation for character={}", character.getSlug());
+            return "Lo que pides no está permitido en esta plataforma.";
+        }
+
+        // ── 1. Modelo principal ────────────────────────────────────────────────
         try {
             log.info("Trying primary model={} for character={}", primaryModel, character.getSlug());
             String reply = openRouterChatProvider.generateReply(character, history, userMessage, primaryModel);
-            log.info("Primary model={} replied for character={}", primaryModel, character.getSlug());
+            log.info("Primary model={} replied OK (source: primary) for character={}", primaryModel, character.getSlug());
             return reply;
         } catch (Exception e) {
-            log.warn("Primary model={} failed for character={}: {}", primaryModel, character.getSlug(), summarize(e));
+            boolean wasBadRefusal = e.getMessage() != null && e.getMessage().startsWith("BAD_ADULT_REFUSAL");
+            log.warn("Primary model={} failed for character={} wasBadRefusal={}: {}",
+                    primaryModel, character.getSlug(), wasBadRefusal, summarize(e));
         }
 
-        // ── 2. Try fallback models in order ───────────────────────────────────
+        // ── 2. Modelos fallback en orden ──────────────────────────────────────
         for (String fallback : fallbackModels) {
             try {
                 log.info("Trying fallback model={} for character={}", fallback, character.getSlug());
                 String reply = openRouterChatProvider.generateReply(character, history, userMessage, fallback);
-                log.info("Fallback model={} replied for character={}", fallback, character.getSlug());
+                log.info("Fallback model={} replied OK (source: fallback) for character={}", fallback, character.getSlug());
                 return reply;
             } catch (Exception e) {
                 log.warn("Fallback model={} failed for character={}: {}", fallback, character.getSlug(), summarize(e));
             }
         }
 
-        // ── 3. All models failed — local varied fallback ───────────────────────
-        log.warn("All OpenRouter models failed for character={}. Using local varied fallback.", character.getSlug());
+        // ── 3. Todos los modelos fallaron — fallback local ─────────────────────
+        log.warn("All remote models failed for character={}. Using local fallback (source: local) isAdult={}",
+                character.getSlug(), isAdultRequest);
+
+        if (isAdultRequest && moderation.isAdultModeEnabled()) {
+            return simulatedAiService.generateAdultFallback(character);
+        }
         return simulatedAiService.generateFallback(character);
     }
 
-    /** Summarizes an exception without leaking API keys or secrets. */
     private String summarize(Exception e) {
         String msg = e.getMessage();
         if (msg == null) return e.getClass().getSimpleName();
-        // Trim to avoid logging huge response bodies
         return msg.length() > 200 ? msg.substring(0, 200) + "..." : msg;
     }
 }
