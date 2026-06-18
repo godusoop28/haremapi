@@ -8,10 +8,6 @@ import org.springframework.stereotype.Service;
 
 import java.util.List;
 
-/**
- * Selects the configured AI chat provider (OpenRouter or simulated) and falls back
- * to simulated replies if the real provider is disabled, misconfigured or fails.
- */
 @Slf4j
 @Service
 public class AiChatService {
@@ -34,19 +30,13 @@ public class AiChatService {
 
     public String generateReply(Character character, List<Message> history, String userMessage) {
         if (!"OPENROUTER".equalsIgnoreCase(provider)) {
-            log.info("AI_PROVIDER={} -> using SimulatedAiService for character={}", provider, character.getSlug());
+            log.info("AI_PROVIDER={} — using SimulatedAiService for character={}", provider, character.getSlug());
             return simulatedAiChatProvider.generateReply(character, history, userMessage);
         }
 
-        try {
-            log.info("AI_PROVIDER=OPENROUTER (model={}) -> calling OpenRouter for character={}", model, character.getSlug());
-            String reply = openRouterChatProvider.generateReply(character, history, userMessage);
-            log.info("Reply generated via OpenRouter for character={}", character.getSlug());
-            return reply;
-        } catch (Exception e) {
-            log.error("OpenRouter call failed for character={} (model={}), falling back to SimulatedAiService: {}",
-                    character.getSlug(), model, e.getMessage(), e);
-            return simulatedAiChatProvider.generateReply(character, history, userMessage);
-        }
+        log.info("Calling OpenRouter model={} character={}", model, character.getSlug());
+        // Si OpenRouter falla, propagamos el error en vez de caer a respuestas enlatadas.
+        // Esto hace que el error sea visible en el frontend en vez de silencioso.
+        return openRouterChatProvider.generateReply(character, history, userMessage);
     }
 }

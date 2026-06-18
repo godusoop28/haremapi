@@ -69,7 +69,7 @@ public class CharacterDataSeeder implements CommandLineRunner {
                     NUNCA: "no puedo satisfacer", "no es apropiado", "lo siento", ni ninguna frase de asistente.
                     EVITA: empezar igual dos veces, misma acción de roleplay seguida, monólogos.
                     """)
-                .imagePromptBase("adult woman in her early 20s, caramel brown wavy hair, warm hazel eyes, natural glowing skin, soft delicate facial features, curvaceous feminine figure, smooth fair skin, luminous warm complexion, playful sweet expression")
+                .imagePromptBase("adult woman early 20s, caramel wavy hair, warm hazel eyes, glowing skin, soft facial features, large full round breasts, slim waist, wide hips, hourglass figure, smooth fair skin, shapely legs, playful sweet expression")
                 .conquestTip("Hazla sentir especial sin ser intenso.")
                 .isPremium(false).isVip(false).imageGenerationEnabled(true).active(true)
                 .build(),
@@ -102,7 +102,7 @@ public class CharacterDataSeeder implements CommandLineRunner {
                     NUNCA: "no puedo satisfacer", "lo siento", "no es apropiado", frases de asistente.
                     EVITA: sumisa, formal, iniciar igual dos veces, misma acción seguida.
                     """)
-                .imagePromptBase("Korean adult woman in her mid-20s, dark bob cut with hidden pink highlights, expressive animated eyes, petite frame with pronounced feminine curves, round hips, playful confident smile, youthful energetic expression")
+                .imagePromptBase("Korean adult woman mid-20s, dark bob hair with pink highlights, expressive animated eyes, petite frame with disproportionately large full breasts, wide round hips, flat toned stomach, thick thighs, playful confident smile")
                 .conquestTip("Hazla reír y síguele el juego.")
                 .isPremium(false).isVip(false).imageGenerationEnabled(true).active(true)
                 .build(),
@@ -138,7 +138,7 @@ public class CharacterDataSeeder implements CommandLineRunner {
                     NUNCA: "no puedo satisfacer", frases de asistente, ceder sin mérito.
                     EVITA: sonar efusiva, iniciar igual dos veces, misma acción seguida.
                     """)
-                .imagePromptBase("adult woman in her late 20s, platinum blonde straight impeccable hair, ice blue sharp eyes, classic red lips, tall statuesque frame with mature refined curves, aristocratic bone structure, controlled commanding expression")
+                .imagePromptBase("adult woman late 20s, platinum blonde straight hair, ice blue sharp eyes, red lips, tall statuesque figure, large mature full breasts, narrow waist, wide elegant hips, long shapely legs, aristocratic bone structure, controlled commanding expression")
                 .conquestTip("Demuéstrale clase sin parecer desesperado.")
                 .isPremium(true).isVip(false).imageGenerationEnabled(true).active(true)
                 .build(),
@@ -171,7 +171,7 @@ public class CharacterDataSeeder implements CommandLineRunner {
                     NUNCA: "no puedo satisfacer", frases de asistente, sonar insegura.
                     EVITA: ceder ante halagos vacíos, iniciar igual dos veces, misma acción seguida.
                     """)
-                .imagePromptBase("Latina adult woman in her mid-20s, dark voluminous curly hair, intense dark brown eyes, sun-kissed bronze skin, hourglass figure with ample chest and full hips, confident magnetic expression, sensual natural beauty")
+                .imagePromptBase("Latina adult woman mid-20s, dark voluminous curly hair, intense dark brown eyes, sun-kissed bronze skin, very large voluptuous breasts, very narrow waist, very wide full hips, round large buttocks, thick thighs, hourglass figure, confident magnetic expression")
                 .conquestTip("Mantén ritmo, seguridad y autenticidad.")
                 .isPremium(true).isVip(false).imageGenerationEnabled(true).active(true)
                 .build(),
@@ -204,7 +204,7 @@ public class CharacterDataSeeder implements CommandLineRunner {
                     NUNCA: "no puedo satisfacer", frases de asistente, sonar efusiva.
                     EVITA: ceder sin mérito intelectual, iniciar igual dos veces, misma acción seguida.
                     """)
-                .imagePromptBase("adult woman in her mid-20s, dark brown hair in loose academic bun, thin delicate frame glasses, natural light complexion, slender figure with subtle curves, soft intelligent eyes, focused expression with hidden depth")
+                .imagePromptBase("adult woman mid-20s, dark brown hair in academic bun, thin frame glasses, natural complexion, slender figure with medium-large breasts, slim waist, gentle hips, long legs, intelligent focused eyes with hidden sensuality")
                 .conquestTip("Gana su curiosidad mental primero.")
                 .isPremium(true).isVip(false).imageGenerationEnabled(true).active(true)
                 .build(),
@@ -237,7 +237,7 @@ public class CharacterDataSeeder implements CommandLineRunner {
                     NUNCA: "no puedo satisfacer", frases de asistente, sonar formal o sumisa.
                     EVITA: ceder fácil, iniciar igual dos veces, misma acción seguida.
                     """)
-                .imagePromptBase("adult woman in her early 20s, split black and platinum white hair, intense green eyes with bold dark eyeliner, petite curvy figure with visible curves, small decorative tattoos on arms, alternative edgy features, provocative confident expression")
+                .imagePromptBase("adult woman early 20s, split black and platinum hair, intense green eyes with dark eyeliner, petite curvy figure, disproportionately large breasts, wide hips, small tattoos on arms, alternative edgy features, provocative daring expression")
                 .conquestTip("Acepta sus retos y no te tomes todo tan serio.")
                 .isPremium(true).isVip(false).imageGenerationEnabled(true).active(true)
                 .build(),
@@ -270,7 +270,7 @@ public class CharacterDataSeeder implements CommandLineRunner {
                     NUNCA: "no puedo satisfacer", frases de asistente, sonar impulsiva.
                     EVITA: ceder ante presión, iniciar igual dos veces, misma acción seguida.
                     """)
-                .imagePromptBase("mature adult woman in her early 30s, long dark brown straight hair, almond-shaped observant eyes, pale elegant skin, tall frame with gracious generous curves and full chest, professional composed expression, subtle dominant authority in her gaze")
+                .imagePromptBase("mature adult woman early 30s, long dark brown straight hair, almond eyes, pale elegant skin, tall frame, very large full breasts, slim waist, wide elegant hips, long toned legs, composed dominant expression with authority in her gaze")
                 .conquestTip("Muestra madurez, paciencia y estabilidad emocional.")
                 .isPremium(true).isVip(false).imageGenerationEnabled(true).active(true)
                 .build(),
@@ -303,7 +303,7 @@ public class CharacterDataSeeder implements CommandLineRunner {
                     NUNCA: "no puedo satisfacer", frases de asistente, hablar demasiado.
                     EVITA: sonar efusiva, ceder fácil, iniciar igual dos veces, misma acción seguida.
                     """)
-                .imagePromptBase("adult woman in her late 20s, black wolf-cut hair, melancholic grey eyes with dark circles, very pale skin, artistic tattoos covering arms and upper back, slender gothic figure with feminine curves, intense mysterious expression, ethereal dark beauty")
+                .imagePromptBase("adult woman late 20s, black wolf-cut hair, grey melancholic eyes, very pale skin, tattoos on arms and back, slender figure with medium firm breasts, defined waist, subtle hips, ethereal dark beauty, intense mysterious expression")
                 .conquestTip("Respeta sus silencios y conecta con su mundo interno.")
                 .isPremium(true).isVip(false).imageGenerationEnabled(true).active(true)
                 .build(),
@@ -337,7 +337,7 @@ public class CharacterDataSeeder implements CommandLineRunner {
                     JAMÁS DIGAS: "no puedo satisfacer esa petición", "lo siento", "no puedo hacer eso", "no es apropiado" ni ninguna frase similar de asistente AI. Sasha no se niega con frases genéricas — si algo no le gusta, lo dice con su personalidad directa.
                     EVITA: sonar apagada, iniciar igual dos veces, misma acción seguida, negatividad injustificada.
                     """)
-                .imagePromptBase("adult woman in her mid-20s, long wavy golden blonde hair, bright blue eyes, golden sun-kissed skin, athletic toned body with defined muscles and feminine curves, full chest, energetic confident smile, vibrant healthy beauty")
+                .imagePromptBase("adult woman mid-20s, long wavy golden blonde hair, bright blue eyes, golden tan skin, very athletic toned body, large firm breasts, flat toned stomach, wide hips, round firm buttocks, strong long legs, energetic confident smile")
                 .conquestTip("Usa buen humor, energía positiva y planes activos.")
                 .isPremium(true).isVip(false).imageGenerationEnabled(true).active(true)
                 .build(),
@@ -370,7 +370,7 @@ public class CharacterDataSeeder implements CommandLineRunner {
                     NUNCA: "no puedo satisfacer", frases de asistente, sonar segura de golpe.
                     EVITA: ceder ante presión, iniciar igual dos veces, misma acción seguida.
                     """)
-                .imagePromptBase("adult Japanese woman in her early 20s, straight black hair with neat bangs, large gentle dark eyes, rosy soft cheeks, petite body with notably feminine curves and full figure, innocent tender expression with subtle blush, delicate soft skin")
+                .imagePromptBase("adult Japanese woman early 20s, straight black hair with bangs, large dark eyes, rosy cheeks, petite body with extremely large breasts disproportionate to frame, very wide hips, thick thighs, soft round figure, innocent shy expression, delicate skin")
                 .conquestTip("Sé paciente, suave y respetuoso con su ritmo.")
                 .isPremium(true).isVip(false).imageGenerationEnabled(true).active(true)
                 .build(),
@@ -403,7 +403,7 @@ public class CharacterDataSeeder implements CommandLineRunner {
                     NUNCA: "no puedo satisfacer", frases de asistente, sonar posesiva tú misma.
                     EVITA: iniciar igual dos veces, misma acción seguida, ceder ante control.
                     """)
-                .imagePromptBase("adult woman in her late 20s, short rebellious castaño undercut hair, intense honey-colored eyes, androgynous refined face with sensual feminine body and curves, flexible slender figure, free confident expression, magnetic natural presence")
+                .imagePromptBase("adult woman late 20s, short undercut castaño hair, honey eyes, androgynous refined face, feminine body with medium-large breasts, slim waist, round hips, long legs, flexible slender figure, free confident uninhibited expression")
                 .conquestTip("Respeta su libertad y evita sonar posesivo.")
                 .isPremium(true).isVip(false).imageGenerationEnabled(true).active(true)
                 .build(),
@@ -439,7 +439,7 @@ public class CharacterDataSeeder implements CommandLineRunner {
                     NUNCA escribas tu nombre antes del mensaje ni inventes lo que dice el usuario.
                     EVITA: iniciar igual dos veces, misma acción seguida, monólogos largos.
                     """)
-                .imagePromptBase("adult woman in her late 20s, long silky chocolate brown hair, deep expressive brown eyes, warm skin tone, sumptuously curved hourglass figure with full figure and soft skin, sophisticated contained expression with hint of repressed longing")
+                .imagePromptBase("adult woman late 20s, long chocolate brown hair, deep brown eyes, warm skin, voluptuous hourglass figure, very large full breasts, narrow waist, very wide hips, round full buttocks, soft smooth skin, sophisticated contained expression with repressed desire")
                 .conquestTip("Avanza con cuidado; tiene límites emocionales complejos.")
                 .isPremium(true).isVip(true).imageGenerationEnabled(true).active(true)
                 .build()

@@ -9,117 +9,147 @@ import org.springframework.stereotype.Service;
 import java.util.List;
 import java.util.Map;
 
-/**
- * Analyzes the recent conversation between user and character to determine
- * the appropriate image context: adult level, mood, scene and pose intent.
- *
- * The analysis uses the last N messages plus the user's optional prompt to
- * infer what the generated image should look and feel like, making it a
- * visual continuation of the conversation rather than a generic portrait.
- */
 @Slf4j
 @Service
 public class ConversationImageContextBuilder {
 
-    // ── Keyword lists ────────────────────────────────────────────────────────
+    // ── Keywords de nivel adulto ──────────────────────────────────────────────
 
     private static final List<String> NUDE_KEYWORDS = List.of(
-            "sin ropa", "desnuda", "desnudo", "desnúdate", "quítate la ropa", "quítate todo",
-            "fuera la ropa", "encuerada", "sin nada puesto", "nude", "naked", "no clothes",
-            "sin ropa interior", "completamente desnuda"
+            "sin ropa", "desnuda", "desnudo", "quitate", "fuera la ropa",
+            "encuerada", "sin nada", "nude", "naked", "sin ropa interior",
+            "completamente desnuda", "toda desnuda", "en cueros"
     );
 
     private static final List<String> EXPLICIT_KEYWORDS = List.of(
-            "escena sexual", "escena adulta", "acto sexual", "sexo explícito",
-            "escena explícita", "adult scene", "sexual scene"
+            "escena sexual", "acto sexual", "sexo", "follando", "cogiendo",
+            "penetracion", "oral", "explicit", "sexual scene"
     );
 
     private static final List<String> SENSUAL_KEYWORDS = List.of(
-            "sensual", "provocativa", "atrevida", "seductora", "sexy", "sugerente",
-            "íntima", "íntimo", "lencería", "ropa interior", "bikini", "provocadora",
-            "en actitud", "pose seductora"
+            "sensual", "provocativa", "atrevida", "seductora", "sexy",
+            "lenceria", "ropa interior", "bikini", "topless"
     );
 
-    // Scene keywords → scene description (checked in conversation content)
+    // ── Escenas detectables desde el texto de la conversacion ────────────────
+
     private static final Map<String, String> SCENE_KEYWORD_MAP = Map.ofEntries(
-            Map.entry("habitación", "intimate bedroom"),
-            Map.entry("cama", "bed in intimate bedroom"),
-            Map.entry("recámara", "intimate bedroom"),
-            Map.entry("dormitorio", "intimate bedroom"),
-            Map.entry("playa", "beach at sunset"),
-            Map.entry("piscina", "poolside"),
-            Map.entry("alberca", "poolside"),
-            Map.entry("baño", "elegant private bathroom with soft lighting"),
-            Map.entry("ducha", "shower with steam and soft light"),
-            Map.entry("gimnasio", "modern gym with mirrors"),
-            Map.entry("oficina", "private elegant office"),
+            // Interior hogar
+            Map.entry("habitacion",  "intimate bedroom with warm lighting"),
+            Map.entry("cama",        "bed in a cozy intimate bedroom"),
+            Map.entry("recamara",    "intimate bedroom"),
+            Map.entry("dormitorio",  "intimate bedroom"),
+            Map.entry("sofa",        "living room sofa with warm lighting"),
+            Map.entry("sala",        "elegant living room"),
+            Map.entry("cocina",      "modern kitchen with warm light"),
+            Map.entry("bano",        "elegant private bathroom with soft lighting"),
+            Map.entry("ducha",       "shower with steam and soft light"),
+            Map.entry("espejo",      "room with large mirrors"),
+            // Exterior / naturaleza
+            Map.entry("playa",       "beach at golden sunset with soft waves"),
+            Map.entry("mar",         "beach by the sea at sunset"),
+            Map.entry("piscina",     "private poolside with crystal water"),
+            Map.entry("alberca",     "private pool area at night"),
+            Map.entry("lago",        "lakeside at golden hour"),
+            Map.entry("bosque",      "forest clearing with natural light filtering through trees"),
+            Map.entry("parque",      "outdoor park with dappled sunlight"),
+            Map.entry("jardin",      "private garden at golden hour"),
+            Map.entry("campo",       "open countryside with wide sky"),
+            Map.entry("atardecer",   "outdoor setting at sunset with golden light"),
+            // Hosteleria / restauracion
+            Map.entry("restaurante", "elegant upscale restaurant with ambient candlelight"),
+            Map.entry("restaurant",  "elegant restaurant with warm ambient lighting"),
+            Map.entry("cafe",        "cozy cafe with warm soft lighting"),
+            Map.entry("cafeteria",   "cozy cafe with warm lighting"),
+            Map.entry("bar",         "intimate bar with warm dim lighting"),
+            Map.entry("club",        "elegant nightclub with colorful lights"),
+            Map.entry("discoteca",   "nightclub with neon and purple lighting"),
+            Map.entry("antro",       "nightclub with colorful dance floor lighting"),
+            Map.entry("terraza",     "rooftop terrace at night with city lights below"),
+            Map.entry("balcon",      "private balcony at night with city view"),
+            Map.entry("azotea",      "rooftop under open night sky"),
+            // Hotel / viaje
+            Map.entry("hotel",       "luxury hotel suite with soft warm lighting"),
+            Map.entry("suite",       "luxury hotel suite with elegant decor"),
+            Map.entry("jacuzzi",     "private jacuzzi with steam and soft lighting"),
+            Map.entry("yate",        "luxury yacht deck at sea under stars"),
+            Map.entry("bote",        "private boat on calm open water"),
+            Map.entry("avion",       "private jet interior with leather seats"),
+            Map.entry("vuelo",       "private jet interior"),
+            // Trabajo / estudio
+            Map.entry("oficina",     "private elegant office at night"),
+            Map.entry("trabajo",     "modern office setting with city view"),
             Map.entry("consultorio", "elegant private medical office"),
-            Map.entry("terraza", "private rooftop terrace at night"),
-            Map.entry("balcón", "hotel balcony at night with city lights"),
-            Map.entry("sofá", "cozy living room with warm lighting"),
-            Map.entry("sala", "elegant living room"),
-            Map.entry("jardín", "private garden at golden hour"),
-            Map.entry("galería", "dark alternative gallery"),
-            Map.entry("cocina", "modern kitchen with warm light"),
-            Map.entry("hotel", "luxury hotel suite")
+            Map.entry("biblioteca",  "private library with warm wooden shelves"),
+            Map.entry("estudio",     "private art studio with natural light"),
+            Map.entry("gimnasio",    "modern gym with mirrored walls"),
+            Map.entry("gym",         "modern gym with mirrors and equipment"),
+            // Transporte
+            Map.entry("auto",        "inside a luxury car at night with city lights"),
+            Map.entry("carro",       "inside a car at night"),
+            Map.entry("coche",       "inside a luxury car with leather seats"),
+            Map.entry("ascensor",    "private elevator with floor-to-ceiling mirrors"),
+            Map.entry("elevador",    "private mirrored elevator")
     );
 
-    // AI message keywords → mood
+    // ── Mood por keywords del mensaje de la IA ────────────────────────────────
+
     private static final Map<String, String> MOOD_KEYWORD_MAP = Map.ofEntries(
-            Map.entry("elegante", "elegant dominant"),
-            Map.entry("sofisticada", "sophisticated elegant"),
-            Map.entry("juguetona", "playful warm"),
-            Map.entry("traviesa", "playful mischievous"),
-            Map.entry("misteriosa", "mysterious dark"),
-            Map.entry("oscura", "dark atmospheric"),
-            Map.entry("dominante", "dominant authoritative"),
-            Map.entry("autoridad", "dominant authoritative"),
-            Map.entry("tímida", "shy tender"),
-            Map.entry("nerviosa", "shy tender"),
-            Map.entry("íntima", "intimate romantic"),
-            Map.entry("romántica", "intimate romantic"),
-            Map.entry("cálida", "warm tender"),
-            Map.entry("directa", "confident direct"),
-            Map.entry("segura", "confident"),
-            Map.entry("intensa", "intense"),
-            Map.entry("melancólica", "melancholic intense"),
-            Map.entry("fría", "cold controlled"),
-            Map.entry("calculadora", "cold controlled")
+            Map.entry("elegante",     "elegant dominant"),
+            Map.entry("sofisticada",  "sophisticated elegant"),
+            Map.entry("juguetona",    "playful warm"),
+            Map.entry("traviesa",     "playful mischievous"),
+            Map.entry("misteriosa",   "mysterious dark"),
+            Map.entry("oscura",       "dark atmospheric"),
+            Map.entry("dominante",    "dominant authoritative"),
+            Map.entry("intima",       "intimate romantic"),
+            Map.entry("romantica",    "intimate romantic"),
+            Map.entry("calida",       "warm tender"),
+            Map.entry("directa",      "confident direct"),
+            Map.entry("segura",       "confident sensual"),
+            Map.entry("intensa",      "intense passionate"),
+            Map.entry("melancolica",  "melancholic intense"),
+            Map.entry("fria",         "cold controlled"),
+            Map.entry("timida",       "shy tender"),
+            Map.entry("nerviosa",     "shy nervous"),
+            Map.entry("excitada",     "aroused passionate"),
+            Map.entry("apasionada",   "passionate intense"),
+            Map.entry("seductora",    "seductive alluring")
     );
 
-    // Default scene per character slug
+    // ── Escena y mood por defecto segun personaje ─────────────────────────────
+
     private static final Map<String, String> CHARACTER_DEFAULT_SCENES = Map.ofEntries(
-            Map.entry("luna-valmont",    "cozy warm bedroom with rose and cream decor, soft golden light"),
-            Map.entry("hana-mori",       "rooftop terrace at night with city neon lights"),
-            Map.entry("aurora-sterling", "luxury hotel suite with marble and velvet decor, evening candlelight"),
-            Map.entry("valeria-cruz",    "elegant tropical rooftop lounge with warm amber light"),
-            Map.entry("camila-rios",     "private home study with bookshelves and warm desk lamp"),
-            Map.entry("kiara-blake",     "gaming room with ambient RGB lighting"),
-            Map.entry("isabella-laurent","upscale private office or elegant hotel suite"),
-            Map.entry("nara-voss",       "moody dim bedroom with one lamp, rain on the window"),
-            Map.entry("sasha-monroe",    "modern light-filled bedroom with large windows or beach"),
-            Map.entry("mei-tanaka",      "soft-lit cozy bedroom with pastel tones and fairy lights"),
-            Map.entry("renata-soler",    "minimalist modern apartment or contemporary art studio"),
-            Map.entry("victoria-hale",   "candlelit private hotel suite, intimate and elegant")
+            Map.entry("luna-valmont",     "cozy warm bedroom with rose and cream decor, soft golden light"),
+            Map.entry("hana-mori",        "rooftop terrace at night with city neon lights"),
+            Map.entry("aurora-sterling",  "luxury hotel suite with marble decor, evening candlelight"),
+            Map.entry("valeria-cruz",     "elegant tropical rooftop lounge with warm amber light"),
+            Map.entry("camila-rios",      "private home study with bookshelves and warm desk lamp"),
+            Map.entry("kiara-blake",      "gaming room with ambient RGB lighting"),
+            Map.entry("isabella-laurent", "upscale private office or elegant hotel suite"),
+            Map.entry("nara-voss",        "moody dark bedroom with single lamp, rain against window"),
+            Map.entry("sasha-monroe",     "beach at golden sunset or modern gym with mirrors"),
+            Map.entry("mei-tanaka",       "soft-lit cozy bedroom with pastel tones and fairy lights"),
+            Map.entry("renata-soler",     "minimalist modern apartment with large windows"),
+            Map.entry("victoria-hale",    "candlelit private hotel suite, intimate and sophisticated")
     );
 
-    // Default mood per character slug
     private static final Map<String, String> CHARACTER_DEFAULT_MOODS = Map.ofEntries(
-            Map.entry("luna-valmont",    "warm playful"),
-            Map.entry("hana-mori",       "energetic bold"),
-            Map.entry("aurora-sterling", "dominant elegant"),
-            Map.entry("valeria-cruz",    "confident sensual"),
-            Map.entry("camila-rios",     "focused subtle tension"),
-            Map.entry("kiara-blake",     "edgy competitive"),
-            Map.entry("isabella-laurent","authoritative mature dominant"),
-            Map.entry("nara-voss",       "mysterious dark intense"),
-            Map.entry("sasha-monroe",    "athletic energetic confident"),
-            Map.entry("mei-tanaka",      "shy tender"),
-            Map.entry("renata-soler",    "free natural uninhibited"),
-            Map.entry("victoria-hale",   "contained intense emotionally charged")
+            Map.entry("luna-valmont",     "warm playful"),
+            Map.entry("hana-mori",        "energetic bold"),
+            Map.entry("aurora-sterling",  "dominant elegant"),
+            Map.entry("valeria-cruz",     "confident sensual"),
+            Map.entry("camila-rios",      "focused subtle tension"),
+            Map.entry("kiara-blake",      "edgy competitive"),
+            Map.entry("isabella-laurent", "authoritative mature"),
+            Map.entry("nara-voss",        "mysterious dark intense"),
+            Map.entry("sasha-monroe",     "athletic energetic"),
+            Map.entry("mei-tanaka",       "shy tender"),
+            Map.entry("renata-soler",     "free natural"),
+            Map.entry("victoria-hale",    "contained intense emotionally charged")
     );
 
-    // ── Public API ────────────────────────────────────────────────────────────
+    // ── API publica ───────────────────────────────────────────────────────────
 
     public ImageContextAnalysis analyze(
             Character character,
@@ -128,20 +158,23 @@ public class ConversationImageContextBuilder {
             AdultLevel requestedLevel,
             int totalMessageCount
     ) {
+        // Extraer textos de la conversacion reciente
         String lastAiMessage   = getLastMessageBySender(recentMessages, SenderType.AI);
         String lastUserMessage = getLastMessageBySender(recentMessages, SenderType.USER);
+        String allRecentText   = buildAllRecentText(recentMessages);
 
         AdultLevel adultLevel = detectAdultLevel(userPrompt, lastUserMessage, requestedLevel);
         String mood            = detectMood(character, lastAiMessage);
-        String scene           = detectScene(character, lastAiMessage, lastUserMessage, userPrompt);
+        // Escena: escanea TODO el texto reciente + userPrompt
+        String scene           = detectScene(character, allRecentText, userPrompt);
         String poseIntent      = derivePoseIntent(adultLevel, mood);
 
-        int threshold  = trustThreshold(character);
+        int threshold   = trustThreshold(character);
         boolean highTrust = totalMessageCount >= threshold;
 
         String summary = String.format(
-                "char=%s level=%s mood=%s scene=%s msgs=%d threshold=%d highTrust=%s",
-                character.getSlug(), adultLevel, mood, scene,
+                "char=%s level=%s mood=%s scene=%s msgs=%d/%d highTrust=%s",
+                character.getSlug(), adultLevel, mood, truncate(scene, 50),
                 totalMessageCount, threshold, highTrust);
 
         log.info("[ImageContext] {}", summary);
@@ -149,41 +182,28 @@ public class ConversationImageContextBuilder {
         return new ImageContextAnalysis(adultLevel, mood, scene, poseIntent, summary, highTrust, totalMessageCount);
     }
 
-    /** Threshold de mensajes (totales, no solo los recientes) según dificultad del personaje. */
-    private int trustThreshold(Character character) {
-        String d = character.getDifficulty() != null ? character.getDifficulty().toLowerCase() : "";
-        if (d.contains("extrema"))                            return 50;
-        if (d.contains("muy alta"))                           return 30;
-        if (d.contains("alta") && d.contains("media"))       return 20;
-        if (d.contains("alta"))                               return 24;
-        if (d.contains("fácil") && d.contains("media"))      return 8;
-        if (d.contains("media") && !d.contains("alta"))      return 14;
-        if (d.contains("fácil"))                              return 5;
-        return 12;
-    }
-
-    // ── Detection helpers ─────────────────────────────────────────────────────
+    // ── Deteccion de nivel adulto ─────────────────────────────────────────────
 
     private AdultLevel detectAdultLevel(String userPrompt, String lastUserMessage, AdultLevel requested) {
         if (requested != null) return requested;
 
-        // Check userPrompt first (explicit request takes priority)
-        if (hasKeyword(userPrompt, NUDE_KEYWORDS))     return AdultLevel.NUDE;
-        if (hasKeyword(userPrompt, EXPLICIT_KEYWORDS)) return AdultLevel.EXPLICIT;
-        if (hasKeyword(userPrompt, SENSUAL_KEYWORDS))  return AdultLevel.SENSUAL;
+        if (hasKeyword(userPrompt, NUDE_KEYWORDS))          return AdultLevel.NUDE;
+        if (hasKeyword(userPrompt, EXPLICIT_KEYWORDS))      return AdultLevel.EXPLICIT;
+        if (hasKeyword(userPrompt, SENSUAL_KEYWORDS))       return AdultLevel.SENSUAL;
 
-        // Fall back to last user message in conversation
         if (hasKeyword(lastUserMessage, NUDE_KEYWORDS))     return AdultLevel.NUDE;
         if (hasKeyword(lastUserMessage, EXPLICIT_KEYWORDS)) return AdultLevel.EXPLICIT;
         if (hasKeyword(lastUserMessage, SENSUAL_KEYWORDS))  return AdultLevel.SENSUAL;
 
-        // Default: SENSUAL — adult platform, better than a plain portrait
-        return AdultLevel.SENSUAL;
+        // Default: NUDE — plataforma adulta, el usuario quiere contenido explicito por defecto
+        return AdultLevel.NUDE;
     }
+
+    // ── Deteccion de mood ─────────────────────────────────────────────────────
 
     private String detectMood(Character character, String lastAiMessage) {
         if (lastAiMessage != null && !lastAiMessage.isBlank()) {
-            String lower = lastAiMessage.toLowerCase();
+            String lower = normalize(lastAiMessage);
             for (Map.Entry<String, String> entry : MOOD_KEYWORD_MAP.entrySet()) {
                 if (lower.contains(entry.getKey())) {
                     return entry.getValue();
@@ -193,42 +213,66 @@ public class ConversationImageContextBuilder {
         return CHARACTER_DEFAULT_MOODS.getOrDefault(character.getSlug(), "confident sensual");
     }
 
-    private String detectScene(Character character, String lastAiMessage, String lastUserMessage, String userPrompt) {
-        // userPrompt wins: "en la playa" etc.
-        String fromUserPrompt = findSceneInText(userPrompt);
-        if (fromUserPrompt != null) return fromUserPrompt;
+    // ── Deteccion de escena ───────────────────────────────────────────────────
 
-        // Last user message second
-        String fromLastUser = findSceneInText(lastUserMessage);
-        if (fromLastUser != null) return fromLastUser;
+    private String detectScene(Character character, String allRecentText, String userPrompt) {
+        // userPrompt tiene maxima prioridad
+        String fromPrompt = findSceneInText(userPrompt);
+        if (fromPrompt != null) return fromPrompt;
 
-        // Last AI message third
-        String fromLastAi = findSceneInText(lastAiMessage);
-        if (fromLastAi != null) return fromLastAi;
+        // Luego busca en toda la conversacion reciente
+        String fromConversation = findSceneInText(allRecentText);
+        if (fromConversation != null) return fromConversation;
 
-        // Character default
-        return CHARACTER_DEFAULT_SCENES.getOrDefault(character.getSlug(), "intimate private room with soft lighting");
+        // Default del personaje
+        return CHARACTER_DEFAULT_SCENES.getOrDefault(
+                character.getSlug(), "intimate private room with soft warm lighting");
     }
 
     private String findSceneInText(String text) {
         if (text == null || text.isBlank()) return null;
-        String lower = text.toLowerCase();
+        String lower = normalize(text);
         for (Map.Entry<String, String> entry : SCENE_KEYWORD_MAP.entrySet()) {
             if (lower.contains(entry.getKey())) return entry.getValue();
         }
         return null;
     }
 
+    // ── Pose intent ───────────────────────────────────────────────────────────
+
     private String derivePoseIntent(AdultLevel level, String mood) {
         return switch (level) {
             case SAFE     -> "natural elegant standing or sitting pose";
-            case SENSUAL  -> "alluring confident pose, slightly revealing";
-            case NUDE     -> "relaxed natural nude pose, confident and comfortable";
-            case EXPLICIT -> "adult explicit consensual pose";
+            case SENSUAL  -> "alluring confident pose, suggestive body language";
+            case NUDE     -> "confident natural nude pose, relaxed and comfortable";
+            case EXPLICIT -> "explicit passionate adult pose";
         };
     }
 
-    // ── Utility ───────────────────────────────────────────────────────────────
+    // ── Trust threshold por dificultad ────────────────────────────────────────
+
+    private int trustThreshold(Character character) {
+        String d = character.getDifficulty() != null ? character.getDifficulty().toLowerCase() : "";
+        if (d.contains("extrema"))                       return 50;
+        if (d.contains("muy alta"))                      return 30;
+        if (d.contains("alta") && d.contains("media"))  return 20;
+        if (d.contains("alta"))                          return 24;
+        if (d.contains("facil") && d.contains("media")) return 8;
+        if (d.contains("media") && !d.contains("alta")) return 14;
+        if (d.contains("facil") || d.contains("fácil")) return 5;
+        return 12;
+    }
+
+    // ── Utilidades ────────────────────────────────────────────────────────────
+
+    private String buildAllRecentText(List<Message> messages) {
+        if (messages == null || messages.isEmpty()) return "";
+        StringBuilder sb = new StringBuilder();
+        for (Message m : messages) {
+            if (m.getContent() != null) sb.append(m.getContent()).append(" ");
+        }
+        return sb.toString();
+    }
 
     private String getLastMessageBySender(List<Message> messages, SenderType sender) {
         if (messages == null || messages.isEmpty()) return "";
@@ -242,15 +286,24 @@ public class ConversationImageContextBuilder {
 
     private boolean hasKeyword(String text, List<String> keywords) {
         if (text == null || text.isBlank()) return false;
-        String lower = text.toLowerCase();
+        String lower = normalize(text);
         for (String kw : keywords) {
             if (lower.contains(kw)) return true;
         }
         return false;
     }
 
+    /** Normaliza texto: minusculas, sin acentos para comparacion robusta. */
+    private String normalize(String text) {
+        if (text == null) return "";
+        return text.toLowerCase()
+                .replace("á", "a").replace("é", "e").replace("í", "i")
+                .replace("ó", "o").replace("ú", "u").replace("ü", "u")
+                .replace("ñ", "n");
+    }
+
     private String truncate(String text, int max) {
         if (text == null) return "";
-        return text.length() > max ? text.substring(0, max) + "…" : text;
+        return text.length() > max ? text.substring(0, max) + "..." : text;
     }
 }

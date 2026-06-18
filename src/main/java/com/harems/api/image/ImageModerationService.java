@@ -6,49 +6,25 @@ import java.util.List;
 import java.util.regex.Pattern;
 
 /**
- * Checks user-submitted image prompts for prohibited content.
- *
- * BLOCKED (always):
- *   – Minors, underage, loli/shota, preteen
- *   – Real persons, celebrities, deepfakes, face-swap tools
- *   – Non-consent, rape, coercion, forced acts, drugging, unconscious
- *   – Child sexual content / illegal content
- *
- * ALLOWED (intentionally NOT blocked):
- *   – Nude, naked, desnuda, desnudo — adult nudity of fictional characters
- *   – Sensual, erotic, intimate, explicit — adult fictional content
- *   – Adult, mature — adult platform content
+ * Checks user-submitted image prompts for absolute legal limits only.
+ * Adult content, nudity and sexual requests are intentionally allowed.
  */
 @Service
 public class ImageModerationService {
 
     private static final List<Pattern> BLOCKED_PATTERNS = List.of(
+            // Menores de edad — limite legal absoluto
+            pattern("\\b(loli|shota|preteen|pre.?teen|child porn|kiddie porn|csam|"
+                    + "pedofilia|pedo(?:filo)?|minor sexual|child sexual|underage sex)\\b"),
 
-            // ── Minors ──────────────────────────────────────────────────────
-            pattern("\\b(ni[ñn]a|ni[ñn]o|menor de edad|adolescente menor|underage|minor|child|kid|"
-                    + "beb[eé]|lolita|loli|shota|preteen|pre-teen|schoolgirl menor)\\b"),
+            // Edades numericas menores de 18 en contexto sexual explicito
+            pattern("\\b(1[0-7])\\s*(a[nn]os?|years?\\s*old)\\b"),
 
-            // Numeric ages under 18 in context like "17 años", "16 years"
-            pattern("\\b(1[0-7])\\s*(a[ñn]os?|years?\\s*old|yr\\s*old|yo\\b)"),
+            // No consentimiento / violencia sexual
+            pattern("\\b(violacion|rape|coercion|non.?consent|forzad[ao]\\s+sex|sexual abuse)\\b"),
 
-            // ── Non-consent / coercion / violence ───────────────────────────
-            pattern("\\b(violaci[oó]n|violacion|forzad[ao]|non.?consent|rape|"
-                    + "coerci[oó]n|coercion|abuso sexual|sexual abuse|snuff|"
-                    + "a la fuerza|sin su consentimiento)\\b"),
-
-            // Unconsciousness / drugged to subdue
-            pattern("\\b(inconsciente|unconscious|drogad[ao]|drugged|"
-                    + "k\\.?o\\.?|knocked out|sedada|sedated)\\b"),
-
-            // ── Real persons / celebrities / deepfakes ───────────────────────
-            // Require "real" qualifier for actor/actress/model to avoid blocking fictional archetypes
-            pattern("\\b(persona real|real person|celebrity|celebridad|famoso[as]?)\\b"),
-            pattern("\\b(actor|actriz|modelo)\\s+(real|famoso|conocido|de hollywood|de cine real)\\b"),
-            pattern("(deepfake|face.?swap|face.?replace|undress.?photo|"
-                    + "desnudar.?foto real|exnovia real|vecina real|foto real)"),
-
-            // ── Child sexual content / illegal ───────────────────────────────
-            pattern("\\b(cp\\b|child porn|kiddie porn|pedo(?:filia)?|child sexual|csam)\\b")
+            // Deepfakes de personas reales
+            pattern("\\b(deepfake|face.?swap|face.?replace|undress.?real|foto.?real.?desnud)\\b")
     );
 
     public boolean isBlocked(String text) {
