@@ -42,7 +42,8 @@ public class ImageGenerationService {
     private final ConversationRepository conversationRepository;
     private final MessageRepository messageRepository;
 
-    private static final int CONTEXT_MESSAGES = 6;
+    // 20 mensajes = ~10 intercambios de conversación — suficiente para detectar escenas mencionadas hace rato
+    private static final int CONTEXT_MESSAGES = 20;
 
     public ImageGenerationResponse generate(User user, ImageGenerationRequest request) {
         log.info("Image generation requested — userId={} characterSlug={} provider={} adultLevel={}",

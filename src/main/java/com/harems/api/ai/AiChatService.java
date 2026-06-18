@@ -30,13 +30,13 @@ public class AiChatService {
 
     public String generateReply(Character character, List<Message> history, String userMessage) {
         if (!"OPENROUTER".equalsIgnoreCase(provider)) {
-            log.info("AI_PROVIDER={} — using SimulatedAiService for character={}", provider, character.getSlug());
+            log.debug("AI_PROVIDER={} — SimulatedAi for character={}", provider, character.getSlug());
             return simulatedAiChatProvider.generateReply(character, history, userMessage);
         }
 
-        log.info("Calling OpenRouter model={} character={}", model, character.getSlug());
-        // Si OpenRouter falla, propagamos el error en vez de caer a respuestas enlatadas.
-        // Esto hace que el error sea visible en el frontend en vez de silencioso.
+        log.info("OpenRouter model={} character={}", model, character.getSlug());
+        // Propaga la excepción — ChatService tiene el catch y el fallback en personaje.
+        // Nunca provoca rollback porque ChatService captura antes de que se propague.
         return openRouterChatProvider.generateReply(character, history, userMessage);
     }
 }
