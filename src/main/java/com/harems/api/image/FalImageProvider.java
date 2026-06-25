@@ -112,30 +112,33 @@ public class FalImageProvider implements ImageGenerationProvider {
 
         JsonNode response = null;
         boolean blocked = false;
+        boolean isNudeOrExplicit = level == AdultLevel.NUDE || level == AdultLevel.EXPLICIT;
 
         for (int attempt = 1; attempt <= maxRetries; attempt++) {
             response = callFal(body, selectedModel, characterSlug);
             logResponse(response);
 
-            blocked = isContentBlocked(response);
+            // Para NUDE/EXPLICIT: has_nsfw_concepts=true es ESPERADO y no es un bloqueo.
+            // Para SAFE/SENSUAL: has_nsfw_concepts=true sí indica problema.
+            // Cuando validateOutput=false: no tratar NSFW como bloqueo en ningún nivel.
+            blocked = isContentBlocked(response, level);
             if (!blocked) {
-                log.info("[FAL] Attempt {} succeeded — character={} model={}", attempt, characterSlug, selectedModel);
+                log.info("[FAL] Attempt {} succeeded — character={} model={} level={}", attempt, characterSlug, selectedModel, level);
                 break;
             }
 
-            log.warn("[FAL] Attempt {}/{} blocked (has_nsfw_concepts=true) — character={} model={}",
-                    attempt, maxRetries, characterSlug, selectedModel);
+            log.warn("[FAL] Attempt {}/{} blocked — character={} model={} level={}",
+                    attempt, maxRetries, characterSlug, selectedModel, level);
 
             if (attempt == maxRetries) {
-                // Si el modelo principal fue NUDE/EXPLICIT, intentar fallback si es diferente
-                boolean isNudeLevel = level == AdultLevel.NUDE || level == AdultLevel.EXPLICIT;
-                if (isNudeLevel && !modelNudeFallback.equals(selectedModel)) {
+                // Solo intentar fallback para NUDE/EXPLICIT si hay un modelo alternativo
+                if (isNudeOrExplicit && !modelNudeFallback.equals(selectedModel)) {
                     log.info("[FAL] Trying nude fallback model={} for character={}", modelNudeFallback, characterSlug);
                     Map<String, Object> fallbackBody = buildRequestBody(input, modelNudeFallback);
                     logBody(fallbackBody);
                     response = callFal(fallbackBody, modelNudeFallback, characterSlug);
                     logResponse(response);
-                    blocked = isContentBlocked(response);
+                    blocked = isContentBlocked(response, level);
                     if (!blocked) {
                         log.info("[FAL] Nude fallback model={} succeeded for character={}", modelNudeFallback, characterSlug);
                         selectedModel = modelNudeFallback;
@@ -144,7 +147,7 @@ public class FalImageProvider implements ImageGenerationProvider {
             }
         }
 
-        // Validar imagen si está habilitado
+        // Validar imagen solo cuando validateOutput=true (HEAD size check para detectar imágenes negras)
         if (validateOutput && response != null) {
             String imageUrl = extractUrl(response);
             if (imageUrl != null && isImageTooSmall(imageUrl)) {
@@ -242,11 +245,30 @@ public class FalImageProvider implements ImageGenerationProvider {
 
     // ── Validation ────────────────────────────────────────────────────────────
 
-    private boolean isContentBlocked(JsonNode response) {
+    /**
+     * Determina si la imagen fue bloqueada por el proveedor.
+     *
+     * Lógica:
+     * - NUDE/EXPLICIT: has_nsfw_concepts=true es ESPERADO (contenido adulto generado OK) → no blocked.
+     * - SAFE/SENSUAL: has_nsfw_concepts=true indica contenido inesperado → blocked.
+     * - validateOutput=false: confiar en el proveedor, no bloquear por flags NSFW.
+     */
+    private boolean isContentBlocked(JsonNode response, AdultLevel level) {
         if (response == null) return false;
+
+        // Cuando el output validation está deshabilitado o es contenido adulto esperado, no bloquear por NSFW
+        if (!validateOutput || level == AdultLevel.NUDE || level == AdultLevel.EXPLICIT) {
+            log.debug("[FAL] NSFW check skipped — validateOutput={} level={}", validateOutput, level);
+            return false;
+        }
+
         JsonNode nsfw = response.path("has_nsfw_concepts");
         if (nsfw.isArray() && !nsfw.isEmpty()) {
-            return nsfw.get(0).asBoolean(false);
+            boolean nsfwDetected = nsfw.get(0).asBoolean(false);
+            if (nsfwDetected) {
+                log.warn("[FAL] has_nsfw_concepts=true for level={} — treating as blocked", level);
+            }
+            return nsfwDetected;
         }
         return false;
     }
@@ -310,20 +332,24 @@ public class FalImageProvider implements ImageGenerationProvider {
         String body = e.getResponseBodyAsString();
         switch (status) {
             case 401 -> {
-                log.error("[FAL] 401 Unauthorized — FAL_KEY inválida. character={} model={}", characterSlug, model);
-                throw new RuntimeException("Servicio de imágenes no autorizado.");
+                log.error("[FAL] IMAGE_PROVIDER_INVALID_KEY — character={} model={}", characterSlug, model);
+                throw new RuntimeException("El servidor de imágenes está temporalmente ocupado. Inténtalo más tarde.");
+            }
+            case 402 -> {
+                log.error("[FAL] IMAGE_PROVIDER_BALANCE_EXHAUSTED — character={} model={}", characterSlug, model);
+                throw new RuntimeException("Estamos preparando la imagen, inténtalo de nuevo en unos segundos.");
             }
             case 422 -> {
-                log.error("[FAL] 422 Payload inválido — character={} model={} body={}", characterSlug, model, body);
-                throw new RuntimeException("Solicitud inválida al servicio de imágenes.");
+                log.error("[FAL] IMAGE_PROVIDER_INVALID_REQUEST — character={} model={} body={}", characterSlug, model, body);
+                throw new RuntimeException("No se pudo procesar la solicitud de imagen. Inténtalo de nuevo.");
             }
             case 429 -> {
-                log.warn("[FAL] 429 Rate limit — character={} model={}", characterSlug, model);
-                throw new RuntimeException("Límite de generación alcanzado. Intenta en unos minutos.");
+                log.warn("[FAL] IMAGE_PROVIDER_RATE_LIMIT — character={} model={}", characterSlug, model);
+                throw new RuntimeException("El servidor de imágenes está ocupado. Inténtalo en unos minutos.");
             }
             default -> {
-                log.error("[FAL] Error {} — character={} model={} body={}", status, characterSlug, model, body);
-                throw new RuntimeException("Error al generar la imagen (" + status + ").");
+                log.error("[FAL] IMAGE_PROVIDER_ERROR_{} — character={} model={}", status, characterSlug, model);
+                throw new RuntimeException("El servidor de imágenes está temporalmente no disponible.");
             }
         }
     }

@@ -45,6 +45,11 @@ chat:
   explicit-roleplay-enabled: ${CHAT_EXPLICIT_ROLEPLAY_ENABLED:true}
   # 0 = sin restriccion de conexion. >0 = mensajes minimos antes de escalar.
   explicit-min-connection: ${CHAT_EXPLICIT_MIN_CONNECTION:0}
+  # Solo bloquear contenido ilegal (menores, no-consenso, deepfakes). NO bloquear adulto ficticio consensuado.
+  block-only-illegal: ${CHAT_BLOCK_ONLY_ILLEGAL:true}
+  # Reintentar cuando el modelo da rechazo moralizante ante contenido adulto permitido.
+  retry-on-adult-refusal: ${CHAT_RETRY_ON_ADULT_REFUSAL:true}
+  max-adult-refusal-retries: ${CHAT_MAX_ADULT_REFUSAL_RETRIES:1}
 
 # ── AI / Chat ──────────────────────────────────────────────────────────────────
 ai:
@@ -52,7 +57,7 @@ ai:
   openrouter:
     api-key: ${OPENROUTER_API_KEY:}
     model: ${OPENROUTER_MODEL:sao10k/l3.3-euryale-70b}
-    fallback-models: ${OPENROUTER_FALLBACK_MODELS:sao10k/l3-euryale-70b,gryphe/mythomax-l2-13b}
+    fallback-models: ${OPENROUTER_FALLBACK_MODELS:sao10k/l3-euryale-70b,sao10k/l3.1-euryale-70b,gryphe/mythomax-l2-13b}
     base-url: ${OPENROUTER_BASE_URL:https://openrouter.ai/api/v1/chat/completions}
     referer: ${OPENROUTER_REFERER:https://haremsweb.vercel.app}
     title: ${OPENROUTER_TITLE:HAREMS}
@@ -91,14 +96,38 @@ image:
     safety-tolerance: ${FAL_SAFETY_TOLERANCE:6}
     max-retries: ${FAL_MAX_RETRIES:2}
     refund-on-blocked: ${FAL_REFUND_ON_BLOCKED:true}
-    validate-output: ${FAL_VALIDATE_OUTPUT:true}
+    validate-output: ${FAL_VALIDATE_OUTPUT:false}
 
   runpod:
     api-key: ${RUNPOD_API_KEY:}
     endpoint-id: ${RUNPOD_ENDPOINT_ID:}
     base-url: ${RUNPOD_BASE_URL:https://api.runpod.ai/v2}
 
-# Payments (future use)
+# ── Generación de imágenes — flags globales ────────────────────────────────────
+# IMAGE_GENERATION_ENABLED controla si la feature está activa en general.
+# FREE_IMAGE_GENERATION_ENABLED=false bloquea imágenes para plan FREE (ya forzado en ImageGenerationService).
+# PREMIUM_IMAGE_GENERATION_ENABLED=true permite imágenes para PREMIUM y VIP.
+image-features:
+  enabled: ${IMAGE_GENERATION_ENABLED:true}
+  premium-enabled: ${PREMIUM_IMAGE_GENERATION_ENABLED:true}
+  free-enabled: ${FREE_IMAGE_GENERATION_ENABLED:false}
+
+# ── Payments — PayPal (implementar cuando se active billing real) ──────────────
+# Variables necesarias en Render cuando se implemente PayPal:
+#   BILLING_PROVIDER=PAYPAL
+#   PAYPAL_MODE=live          (o sandbox para pruebas)
+#   PAYPAL_CLIENT_ID=...
+#   PAYPAL_CLIENT_SECRET=...
+#   PAYPAL_WEBHOOK_ID=...
+#   PAYPAL_PRODUCT_ID=...
+#   PAYPAL_PREMIUM_PLAN_ID=...
+#   PAYPAL_VIP_PLAN_ID=...
+#   PAYPAL_SUCCESS_URL=https://haremsweb.vercel.app/subscription/success
+#   PAYPAL_CANCEL_URL=https://haremsweb.vercel.app/subscription/cancel
+#
+# IMPORTANTE: No activar suscripciones por frontend. El plan se activa solo
+# por webhook BILLING.SUBSCRIPTION.ACTIVATED del servidor de PayPal.
+# El endpoint /subscriptions/simulate debe deshabilitarse en producción real.
 payment:
   provider: ${PAYMENT_PROVIDER:}
   secret-key: ${PAYMENT_SECRET_KEY:}

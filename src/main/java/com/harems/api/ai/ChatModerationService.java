@@ -23,19 +23,27 @@ public class ChatModerationService {
     private final boolean allowVulgar;
     private final boolean explicitRoleplayEnabled;
     private final int explicitMinConnection;
+    private final boolean blockOnlyIllegal;
 
     public ChatModerationService(
             @Value("${chat.adult-mode-enabled:true}") boolean adultModeEnabled,
             @Value("${chat.allow-vulgar-language:true}") boolean allowVulgar,
             @Value("${chat.explicit-roleplay-enabled:true}") boolean explicitRoleplayEnabled,
-            @Value("${chat.explicit-min-connection:0}") int explicitMinConnection
+            @Value("${chat.explicit-min-connection:0}") int explicitMinConnection,
+            @Value("${chat.block-only-illegal:true}") boolean blockOnlyIllegal
     ) {
         this.adultModeEnabled = adultModeEnabled;
         this.allowVulgar = allowVulgar;
         this.explicitRoleplayEnabled = explicitRoleplayEnabled;
         this.explicitMinConnection = explicitMinConnection;
-        log.info("ChatModerationService init: adultMode={} allowVulgar={} explicitRoleplay={} minConnection={}",
-                adultModeEnabled, allowVulgar, explicitRoleplayEnabled, explicitMinConnection);
+        this.blockOnlyIllegal = blockOnlyIllegal;
+        log.info("ChatModerationService init: adultMode={} allowVulgar={} explicitRoleplay={} minConnection={} blockOnlyIllegal={}",
+                adultModeEnabled, allowVulgar, explicitRoleplayEnabled, explicitMinConnection, blockOnlyIllegal);
+    }
+
+    /** Resultado de moderación con todos los flags de una vez. */
+    public record ModerationResult(boolean illegal, boolean adultAllowed) {
+        public boolean shouldBlock() { return illegal; }
     }
 
     // ── Patrones BLOQUEADOS — solo contenido ilegal o dañino ────────────────
@@ -101,10 +109,35 @@ public class ChatModerationService {
         return false;
     }
 
+    /**
+     * Retorna true si el contenido es adulto Y está permitido en esta plataforma.
+     * Distinto de isAdultContent() que solo detecta; este combina detección + modo adulto.
+     */
+    public boolean isAdultButAllowed(String text) {
+        if (!adultModeEnabled) return false;
+        boolean adult = isAdultContent(text);
+        if (adult) {
+            log.debug("[ChatMod] isAdultButAllowed=true — content detected as adult and adultMode is ON");
+        }
+        return adult;
+    }
+
+    /**
+     * Resultado completo de moderación: si debe bloquearse, si es adulto permitido.
+     * Usar cuando se necesita tomar decisiones en un solo lugar.
+     */
+    public ModerationResult moderationResult(String text) {
+        boolean illegal = isIllegalOrUnsafe(text);
+        boolean adultAllowed = !illegal && isAdultButAllowed(text);
+        log.info("[ChatMod] moderationResult: illegal={} adultAllowed={}", illegal, adultAllowed);
+        return new ModerationResult(illegal, adultAllowed);
+    }
+
     public boolean isAdultModeEnabled() { return adultModeEnabled; }
     public boolean isVulgarAllowed() { return allowVulgar; }
     public boolean isExplicitRoleplayEnabled() { return explicitRoleplayEnabled; }
     public int getExplicitMinConnection() { return explicitMinConnection; }
+    public boolean isBlockOnlyIllegal() { return blockOnlyIllegal; }
 
     // ── Helpers ───────────────────────────────────────────────────────────────
 
