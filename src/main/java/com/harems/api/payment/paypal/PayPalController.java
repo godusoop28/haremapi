@@ -26,6 +26,7 @@ import java.util.Map;
 public class PayPalController {
 
     private final PayPalService payPalService;
+    private final PayPalClient payPalClient;
     private final PayPalProperties payPalProperties;
     private final BillingProperties billingProperties;
 
@@ -60,6 +61,47 @@ public class PayPalController {
             @AuthenticationPrincipal UserPrincipal principal) {
         payPalService.cancelSubscription(principal.getUser());
         return ResponseEntity.ok().build();
+    }
+
+    /**
+     * Intenta obtener un token OAuth de PayPal y reporta el resultado. Solo ADMIN.
+     * No devuelve secretos ni el token — solo estado de configuración y si OAuth funciona.
+     */
+    @GetMapping("/test-auth")
+    public ResponseEntity<Map<String, Object>> testAuth(
+            @AuthenticationPrincipal UserPrincipal principal) {
+        if (principal.getUser().getRole() != Role.ADMIN) {
+            throw new AccessDeniedException("No tienes permisos para realizar esta acción.");
+        }
+
+        boolean clientIdConfigured = !payPalProperties.getClientId().isBlank();
+        boolean clientSecretConfigured = !payPalProperties.getClientSecret().isBlank();
+
+        boolean oauthOk = false;
+        String error = null;
+        try {
+            payPalClient.accessToken();
+            oauthOk = true;
+        } catch (PayPalException e) {
+            error = e.getMessage();
+        } catch (Exception e) {
+            error = "Error inesperado: " + e.getMessage();
+        }
+
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put("mode", payPalProperties.getMode());
+        result.put("baseUrl", payPalProperties.getBaseUrl());
+        result.put("clientIdConfigured", clientIdConfigured);
+        result.put("clientSecretConfigured", clientSecretConfigured);
+        result.put("clientIdLength", payPalProperties.getClientId().length());
+        result.put("clientSecretLength", payPalProperties.getClientSecret().length());
+        result.put("productIdConfigured", payPalProperties.isProductIdEffectivelyConfigured());
+        result.put("oauthOk", oauthOk);
+        if (error != null) {
+            result.put("error", error);
+        }
+
+        return ResponseEntity.ok(result);
     }
 
     /**

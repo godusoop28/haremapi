@@ -42,12 +42,24 @@ public class PayPalClient {
         if (cachedToken != null && Instant.now().isBefore(tokenExpiresAt.minusSeconds(60))) {
             return cachedToken;
         }
-        if (props.getClientId().isBlank()) {
+
+        boolean clientIdOk = !props.getClientId().isBlank();
+        boolean clientSecretOk = !props.getClientSecret().isBlank();
+        log.info("PayPal OAuth intento — mode={} baseUrl={} clientIdConfigured={} clientSecretConfigured={} clientIdLength={} clientSecretLength={}",
+                props.getMode(),
+                props.getBaseUrl(),
+                clientIdOk,
+                clientSecretOk,
+                props.getClientId().length(),
+                props.getClientSecret().length());
+
+        if (!clientIdOk) {
             throw new PayPalException("PAYPAL_CLIENT_ID no configurado en las variables de entorno.", 503);
         }
-        if (props.getClientSecret().isBlank()) {
+        if (!clientSecretOk) {
             throw new PayPalException("PAYPAL_CLIENT_SECRET no configurado en las variables de entorno.", 503);
         }
+
         String encoded = Base64.getEncoder().encodeToString(
                 (props.getClientId() + ":" + props.getClientSecret())
                         .getBytes(StandardCharsets.UTF_8));
@@ -64,12 +76,17 @@ public class PayPalClient {
             cachedToken = json.get("access_token").asText();
             long expiresIn = json.path("expires_in").asLong(3600);
             tokenExpiresAt = Instant.now().plusSeconds(expiresIn);
+            log.info("PayPal OAuth OK — token obtenido, expira en {}s", expiresIn);
             return cachedToken;
         } catch (RestClientResponseException e) {
+            String body = e.getResponseBodyAsString();
+            log.error("PayPal OAuth FAILED — endpoint=/v1/oauth2/token status={} body={}",
+                    e.getStatusCode(), body);
             throw new PayPalException("Error de autenticación con PayPal: " + e.getStatusCode(), e.getStatusCode().value());
         } catch (PayPalException e) {
             throw e;
         } catch (Exception e) {
+            log.error("PayPal OAuth error inesperado — endpoint=/v1/oauth2/token mensaje={}", e.getMessage());
             throw new PayPalException("Error de comunicación con PayPal: " + e.getMessage(), 502);
         }
     }
