@@ -1,23 +1,22 @@
-package com.harems.api.subscription;
+package com.harems.api.payment;
 
+import com.harems.api.subscription.PlanType;
 import com.harems.api.user.User;
 import jakarta.persistence.*;
-import lombok.AllArgsConstructor;
-import lombok.Builder;
-import lombok.Data;
-import lombok.NoArgsConstructor;
+import lombok.*;
 import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "subscriptions")
+@Table(name = "payments")
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-public class Subscription {
+public class Payment {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -27,23 +26,28 @@ public class Subscription {
     @JoinColumn(name = "user_id", nullable = false)
     private User user;
 
+    @Column(nullable = false)
+    private String provider;
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     private PlanType plan;
 
+    private BigDecimal amount;
+
+    @Builder.Default
+    private String currency = "MXN";
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
-    private SubscriptionStatus status;
+    private PaymentStatus status;
 
-    @Column(nullable = false)
-    private LocalDateTime startsAt;
-
-    private LocalDateTime endsAt;
-
-    private String paymentReference;
-
+    @Column(unique = true)
     private String paypalSubscriptionId;
 
+    private String paypalPlanId;
+    private String paypalProductId;
+    private String externalReference;
     private String rawStatus;
 
     @CreationTimestamp

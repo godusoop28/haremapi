@@ -2,6 +2,7 @@ package com.harems.api.common.exception;
 
 import com.harems.api.common.dto.ErrorResponse;
 import com.harems.api.common.exception.ImageGenerationBlockedException;
+import com.harems.api.payment.paypal.PayPalException;
 import java.util.Map;
 import java.util.LinkedHashMap;
 import org.springframework.http.HttpStatus;
@@ -53,6 +54,17 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(BadRequestException.class)
     public ResponseEntity<ErrorResponse> handleBadRequest(BadRequestException ex) {
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(new ErrorResponse(ex.getMessage()));
+    }
+
+    @ExceptionHandler(PayPalException.class)
+    public ResponseEntity<ErrorResponse> handlePayPal(PayPalException ex) {
+        HttpStatus status = switch (ex.getHttpStatus()) {
+            case 400 -> HttpStatus.BAD_REQUEST;
+            case 401 -> HttpStatus.UNAUTHORIZED;
+            case 503 -> HttpStatus.SERVICE_UNAVAILABLE;
+            default -> HttpStatus.BAD_GATEWAY;
+        };
+        return ResponseEntity.status(status).body(new ErrorResponse(ex.getMessage()));
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)

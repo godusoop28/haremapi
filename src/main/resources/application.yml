@@ -112,22 +112,41 @@ image-features:
   premium-enabled: ${PREMIUM_IMAGE_GENERATION_ENABLED:true}
   free-enabled: ${FREE_IMAGE_GENERATION_ENABLED:false}
 
-# ── Payments — PayPal (implementar cuando se active billing real) ──────────────
-# Variables necesarias en Render cuando se implemente PayPal:
-#   BILLING_PROVIDER=PAYPAL
-#   PAYPAL_MODE=live          (o sandbox para pruebas)
-#   PAYPAL_CLIENT_ID=...
-#   PAYPAL_CLIENT_SECRET=...
-#   PAYPAL_WEBHOOK_ID=...
-#   PAYPAL_PRODUCT_ID=...
-#   PAYPAL_PREMIUM_PLAN_ID=...
-#   PAYPAL_VIP_PLAN_ID=...
+# ── Billing provider ──────────────────────────────────────────────────────────
+# BILLING_PROVIDER=PAYPAL activa el flujo real de pagos.
+# Con PAYPAL activo, /subscriptions/simulate solo funciona para ADMIN.
+billing:
+  provider: ${BILLING_PROVIDER:}
+
+# ── PayPal Subscriptions ──────────────────────────────────────────────────────
+# Configura estas variables en Render (sandbox primero, luego live):
+#   PAYPAL_MODE=sandbox
+#   PAYPAL_CLIENT_ID=<sandbox_client_id>
+#   PAYPAL_CLIENT_SECRET=<sandbox_client_secret>   (NUNCA hardcodear)
+#   PAYPAL_WEBHOOK_ID=<webhook_id_del_dashboard>
+#   PAYPAL_PRODUCT_ID=<product_id>
+#   PAYPAL_PREMIUM_PLAN_ID=<plan_id_premium>
+#   PAYPAL_VIP_PLAN_ID=<plan_id_vip>
+#   PAYPAL_TRIAL_PLAN_ID=<plan_id_trial>
 #   PAYPAL_SUCCESS_URL=https://haremsweb.vercel.app/subscription/success
 #   PAYPAL_CANCEL_URL=https://haremsweb.vercel.app/subscription/cancel
+#   PAYPAL_WEBHOOK_URL=https://haremapi-3a3p.onrender.com/api/payments/paypal/webhook
 #
-# IMPORTANTE: No activar suscripciones por frontend. El plan se activa solo
-# por webhook BILLING.SUBSCRIPTION.ACTIVATED del servidor de PayPal.
-# El endpoint /subscriptions/simulate debe deshabilitarse en producción real.
+# REGLA: El plan se activa SOLO por webhook BILLING.SUBSCRIPTION.ACTIVATED.
+# El endpoint /subscriptions/simulate requiere rol ADMIN.
+paypal:
+  mode: ${PAYPAL_MODE:sandbox}
+  client-id: ${PAYPAL_CLIENT_ID:}
+  client-secret: ${PAYPAL_CLIENT_SECRET:}
+  webhook-id: ${PAYPAL_WEBHOOK_ID:}
+  product-id: ${PAYPAL_PRODUCT_ID:}
+  premium-plan-id: ${PAYPAL_PREMIUM_PLAN_ID:}
+  vip-plan-id: ${PAYPAL_VIP_PLAN_ID:}
+  trial-plan-id: ${PAYPAL_TRIAL_PLAN_ID:}
+  success-url: ${PAYPAL_SUCCESS_URL:https://haremsweb.vercel.app/subscription/success}
+  cancel-url: ${PAYPAL_CANCEL_URL:https://haremsweb.vercel.app/subscription/cancel}
+  webhook-url: ${PAYPAL_WEBHOOK_URL:https://haremapi-3a3p.onrender.com/api/payments/paypal/webhook}
+
 payment:
   provider: ${PAYMENT_PROVIDER:}
   secret-key: ${PAYMENT_SECRET_KEY:}
