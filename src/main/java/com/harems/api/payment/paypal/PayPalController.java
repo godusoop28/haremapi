@@ -118,22 +118,22 @@ public class PayPalController {
         boolean clientIdOk = !payPalProperties.getClientId().isBlank();
         boolean clientSecretOk = !payPalProperties.getClientSecret().isBlank();
         boolean webhookIdOk = !payPalProperties.getWebhookId().isBlank();
-        boolean productIdOk = !payPalProperties.getProductId().isBlank();
+        boolean productIdOk = payPalProperties.isProductIdEffectivelyConfigured();
         boolean trialPlanOk = !payPalProperties.getTrialPlanId().isBlank();
         boolean premiumPlanOk = !payPalProperties.getPremiumPlanId().isBlank();
         boolean vipPlanOk = !payPalProperties.getVipPlanId().isBlank();
 
+        // Solo los campos obligatorios para el flujo de pago van en missing
         List<String> missing = new ArrayList<>();
         if (!clientIdOk) missing.add("PAYPAL_CLIENT_ID");
         if (!clientSecretOk) missing.add("PAYPAL_CLIENT_SECRET");
         if (!webhookIdOk) missing.add("PAYPAL_WEBHOOK_ID");
-        if (!productIdOk) missing.add("PAYPAL_PRODUCT_ID");
         if (!premiumPlanOk) missing.add("PAYPAL_PREMIUM_PLAN_ID");
         if (!vipPlanOk) missing.add("PAYPAL_VIP_PLAN_ID");
-        if (!trialPlanOk) missing.add("PAYPAL_TRIAL_PLAN_ID (opcional — ocultar plan Trial si falta)");
+        // PAYPAL_PRODUCT_ID y PAYPAL_TRIAL_PLAN_ID son opcionales
+        if (!trialPlanOk) missing.add("PAYPAL_TRIAL_PLAN_ID (opcional)");
 
-        boolean ready = missing.isEmpty() || (missing.size() == 1
-                && missing.get(0).startsWith("PAYPAL_TRIAL_PLAN_ID"));
+        boolean ready = clientIdOk && clientSecretOk && webhookIdOk && premiumPlanOk && vipPlanOk;
 
         Map<String, Object> result = new LinkedHashMap<>();
         result.put("billingProvider", billingProperties.getProvider());
